@@ -1,0 +1,14 @@
+prefix=/home/11148/build/ffmpeg.build/staging
+exec_prefix=${prefix}
+libdir=/home/11148/build/ffmpeg.build/staging/lib
+includedir=/home/11148/build/ffmpeg.build/staging/include
+
+Name: libpostproc
+Description: FFmpeg postprocessing library
+Version: 56.6.100
+Requires: 
+Requires.private: libavutil >= 57.28.100
+Conflicts:
+Libs: -L${libdir}  -lpostproc 
+Libs.private: -lm -latomic
+Cflags: -I${includedir}

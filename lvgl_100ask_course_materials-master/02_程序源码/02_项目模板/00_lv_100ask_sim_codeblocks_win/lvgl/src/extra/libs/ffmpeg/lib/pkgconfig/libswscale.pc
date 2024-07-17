@@ -1,0 +1,14 @@
+prefix=/home/11148/build/ffmpeg.build/staging
+exec_prefix=${prefix}
+libdir=/home/11148/build/ffmpeg.build/staging/lib
+includedir=/home/11148/build/ffmpeg.build/staging/include
+
+Name: libswscale
+Description: FFmpeg image rescaling library
+Version: 6.7.100
+Requires: 
+Requires.private: libavutil >= 57.28.100
+Conflicts:
+Libs: -L${libdir}  -lswscale 
+Libs.private: -lm -latomic
+Cflags: -I${includedir}

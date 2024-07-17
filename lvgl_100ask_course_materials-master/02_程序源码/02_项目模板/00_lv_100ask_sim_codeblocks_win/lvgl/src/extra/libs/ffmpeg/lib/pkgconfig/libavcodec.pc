@@ -1,0 +1,14 @@
+prefix=/home/11148/build/ffmpeg.build/staging
+exec_prefix=${prefix}
+libdir=/home/11148/build/ffmpeg.build/staging/lib
+includedir=/home/11148/build/ffmpeg.build/staging/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 59.37.100
+Requires: 
+Requires.private: libswresample >= 4.7.100, libavutil >= 57.28.100
+Conflicts:
+Libs: -L${libdir}  -lavcodec 
+Libs.private: -liconv -lm -latomic -llzma -lmfuuid -lole32 -lstrmiids -lole32 -luser32 -lz -lva
+Cflags: -I${includedir}
