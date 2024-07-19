@@ -80,7 +80,7 @@ extern "C" {
 /**********************
  * GLOBAL PROTOTYPES
  **********************/
-
+extern uint8_t player_run_flag;
 
 /**********************
  *      MACROS

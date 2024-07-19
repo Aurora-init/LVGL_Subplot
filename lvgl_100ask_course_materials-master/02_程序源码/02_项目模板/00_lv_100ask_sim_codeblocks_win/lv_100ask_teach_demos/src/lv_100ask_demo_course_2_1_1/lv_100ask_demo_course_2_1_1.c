@@ -1,14 +1,35 @@
 #include "../../lv_100ask_teach_demos.h"
 #include <time.h>
-#define app_btn_num 6
-#define menu_btn_num 19
+#include <stdio.h>
+#include <math.h>
 
-#define menu_amin_speed_delay 360
-#define Covered_tiles_amin_speed_delay 300
+#define app_btn_num 6               /**< 应用列表按键数 */
+#define menu_btn_num 19             /**< 下拉菜单按键数 */
+#define menu_amin_speed_delay 360   /**< 下拉菜单动画持续时间 */
+#define Covered_tiles_amin_speed_delay 300  /**< 瓷砖横杠下拉动画持续时间 */
 
-char str[100];
+/**< 时间字样字符串 */
+char str[64];
+
+/**< 播放器播放运行标志位 */
 uint8_t player_run_flag = 0;
+static enum {
+    init_state = 0,
+    play_state,
+    pause_state,
+} player_run_state_t;
 
+/**< 播放器播放模式标志位（repeat_mode、unrepeat_mode） */
+uint8_t player_run_mode_set_flag = 0;
+static enum {
+    repeat_mode = 0,
+    unrepeat_mode,
+} repeat_mode_t;
+
+/**< 视频媒体流索引 */
+uint8_t player_run_video_num = 0;
+
+/**< 进入回调函数的对应对象num值 */
 static enum {
     Status_Bar_num = 0,
     menu_num,
@@ -16,38 +37,77 @@ static enum {
     menu_box2_num,
     menu_box2_qr_bg_num,
     player_ctrl_menu_play_pause_btn_num,
-};
-//动画触发标志位
-//uint8_t menu_amin_run_state = 0;
-uint8_t menu_covered_tiles_amin_run_state = 0;
+    player_ctrl_playmode_btn_num,
+    player_ctrl_next_btn_num,
+    player_ctrl_last_btn_num,
+} event_cb_num_t;
 
-//静态对象变量定义
-static lv_obj_t * main_page = NULL;
-//用户操作回调函数
-static uint16_t gpress_x = 0;
-static uint16_t gmove_x = 0;
-static uint16_t gpress_y = 0;
-static uint16_t gmove_y = 0;
-static uint8_t long_press = 0;
-static uint32_t last_time = 0;
+/**<用户操作回调函数变量*/
+static uint16_t gpress_x = 0;   /**< 按下屏幕后x方向坐标 */
+static uint16_t gmove_x = 0;    /**< 释放屏幕后x方向坐标 */
+static uint16_t gpress_y = 0;   /**< 按下屏幕后y方向坐标 */
+static uint16_t gmove_y = 0;    /**< 释放屏幕后y方向坐标 */
+static uint8_t long_press = 0;  /**< 长按检测次数 */
+static uint32_t last_time = 0;  /**< 用于计算dt */
 
-static void main_menu_event_cb(lv_event_t * e);
-static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target_y);
-static void qr_bg_auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target);
-static void auto_size_set(lv_obj_t * obj, uint32_t delay,lv_coord_t start_width, lv_coord_t target_width, lv_coord_t start_hight, lv_coord_t target_hight);
-static void timer_cb(lv_timer_t* timer);
-//lv_demo主要用于创建背景对象，我想让他完成从背景到集点按键的过程(1.主界面)
+ /** \brief
+  * 用户操作回调函数，处理大多数对象方向上的滑动以及长按点击等事件。
+  * \param  lv_event_t * e  对象触发回调函数的事件
+  * \return void
+  * main_obj_event_cb(lv_event_t * e);
+  */
+static void main_obj_event_cb(lv_event_t * e);
+
+/** \brief
+ * 位置类型的动画效果处理
+ * \param lv_obj_t * obj            被操作的对象，指向需要被操作的对象的对象也可以
+ * \param uint32_t delay            动画持续时长
+ * \param lv_coord_t target         需要移动到的位置
+ * \return void
+ * auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target);
+ */
+static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target);
+
+/** \brief
+ * 大小类型的动画效果处理
+ * \param lv_obj_t * obj            被操作的对象，指向需要被操作的对象的对象也可以
+ * \param uint32_t delay            动画持续时长
+ * \param lv_coord_t start_width    起始宽度
+ * \param lv_coord_t target_width   目标宽度
+ * \param lv_coord_t start_hight    起始高度
+ * \param lv_coord_t target_hight   目标高度
+ * \return void
+ * auto_size_set(lv_obj_t * obj, uint32_t delay, lv_coord_t start_width, lv_coord_t target_width, lv_coord_t start_hight, lv_coord_t target_hight);
+ */
+static void auto_size_set(lv_obj_t * obj, uint32_t delay, lv_coord_t start_width, lv_coord_t target_width, lv_coord_t start_hight, lv_coord_t target_hight);
+
+/** \brief
+ *  日期更新定时器回调函数
+ * \param lv_timer_t * timer        定时器对象
+ * \return void
+ *  timeset_timer_cb(lv_timer_t * timer);
+ */
+static void timeset_timer_cb(lv_timer_t * timer);
+
+/** \brief
+ *  视频进度条更新定时器回调函数
+ * \param lv_timer_t * timer        定时器对象
+ * \return void
+ *  video_detect_timer_cb(lv_timer_t * timer);
+ */
+static void video_detect_timer_cb(lv_timer_t * timer);
+
+/**< 1.主界面 */
 void lv_demo(void)
 {
     //主页面背景
-    main_page = lv_obj_create(lv_scr_act());
+    lv_obj_t * main_page = lv_obj_create(lv_scr_act());
     //状态栏
     lv_obj_t * Status_Bar = lv_obj_create(main_page);
     //应用列表瓷砖背景
     lv_obj_t * appliction_bg = lv_tabview_create(main_page, LV_DIR_TOP, 0);
     lv_obj_t * appliction_tile1 = lv_tabview_add_tab(appliction_bg, "First");
     lv_obj_t * appliction_tile2 = lv_tabview_add_tab(appliction_bg, "Second");
-
     lv_obj_set_size(appliction_tile1, LV_HOR_RES , LV_VER_RES);
     //应用列表按键
     lv_obj_t *app_btn_objs[app_btn_num];
@@ -84,12 +144,12 @@ void lv_demo(void)
     //下拉菜单盒子2
     lv_obj_t * menu_box2 = lv_obj_create(menu);
     lv_obj_t * menu_box2_tabview = lv_tabview_create(menu_box2, LV_DIR_TOP, 0);
+    //选项卡1播放器
     lv_obj_t * menu_box2_tabview_tab1= lv_tabview_add_tab(menu_box2_tabview, "First");
     lv_obj_t * player = lv_ffmpeg_player_create(menu_box2_tabview_tab1);
     lv_obj_t * menu_box2_tabview_tab2= lv_tabview_add_tab(menu_box2_tabview, "Second");
+    //二维码页面背景
     lv_obj_t * menu_box2_qr_bg = lv_obj_create(menu_box2);
-
-
 
     //1.主页面背景，也是应用列表界面//设置主界面的边框子对象间距离、边框透明度、边框宽度、主界面无圆角、主界面的位置位于屏幕中心
     lv_obj_set_size(main_page, LV_HOR_RES , LV_VER_RES);
@@ -212,7 +272,6 @@ void lv_demo(void)
     //菜单栏按键
     for(int i = 1; i <= menu_btn_num; i++)
     {
-        int row = 0;
         if(i <= 2)
         {
             lv_obj_set_size(menu_btn_objs[i], 128, 64);
@@ -366,13 +425,12 @@ void lv_demo(void)
     lv_style_transition_dsc_init(&transition_dsc, props, lv_anim_path_linear, 300, 0, NULL);
     static lv_style_t style_main;
     static lv_style_t style_indicator;
-    static lv_style_t style_knob;
     static lv_style_t style_pressed_color;
     lv_style_init(&style_main);
     lv_style_set_bg_opa(&style_main, LV_OPA_COVER);
     lv_style_set_bg_color(&style_main, lv_color_hex3(0xbbb));
     lv_style_set_radius(&style_main, LV_RADIUS_CIRCLE);
-    lv_style_set_pad_ver(&style_main, 0); /*Makes the indicator larger*/
+    lv_style_set_pad_ver(&style_main, 0);
     lv_style_init(&style_indicator);
     lv_style_set_bg_opa(&style_indicator, LV_OPA_COVER);
     lv_style_set_bg_color(&style_indicator, lv_palette_main(LV_PALETTE_BLUE_GREY));
@@ -408,7 +466,6 @@ void lv_demo(void)
     lv_obj_align_to(Covered_tiles_menu_set, menu_covered_tiles, LV_ALIGN_TOP_MID, 0, 26);
     //我的设备按键
     lv_obj_set_size(mydev_btn_obj, LV_HOR_RES*7/28, LV_VER_RES*1/13);
-    printf("LV_HOR_RES*7/28 = %d, LV_VER_RES*1/13 = %d",LV_HOR_RES*7/28,LV_VER_RES*1/13);
     lv_obj_align_to(mydev_btn_obj, menu_covered_tiles, LV_ALIGN_LEFT_MID, 0,-82);
     lv_obj_set_style_radius(mydev_btn_obj, 15, LV_PART_MAIN);
     lv_obj_set_style_bg_color(mydev_btn_obj, lv_color_make(210,210,210), LV_PART_MAIN);
@@ -468,18 +525,18 @@ void lv_demo(void)
     lv_obj_set_style_pad_left(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_add_flag(menu_box2_tabview_tab2, LV_OBJ_FLAG_EVENT_BUBBLE);
-    //下拉菜单盒子2FFMPEG播放盒子
-    lv_ffmpeg_player_set_src(player, "C:/MOV/z.mov");
+    //8.下拉菜单盒子2FFMPEG播放盒子
+    lv_ffmpeg_player_set_src(player, "C:/MOV/1.mov");
     lv_ffmpeg_player_set_auto_restart(player, true);
     lv_ffmpeg_player_set_cmd(player, LV_FFMPEG_PLAYER_CMD_STOP);
-    player_run_flag = 0;
+    player_run_flag = init_state;
     lv_obj_align_to(player, menu_box2_tabview_tab1, LV_ALIGN_CENTER, 0, -30);
     lv_obj_clear_flag(menu_box2_tabview_tab1, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(player, 25, LV_PART_MAIN);
     //播放盒子控制菜单
     lv_obj_t * player_ctrl_menu = lv_obj_create(menu_box2_tabview_tab1);
-    lv_obj_set_size(player_ctrl_menu, LV_HOR_RES*11/18, LV_VER_RES*1/13);
-    lv_obj_align(player_ctrl_menu, LV_ALIGN_TOP_LEFT, 0, 410);
+    lv_obj_set_size(player_ctrl_menu, LV_HOR_RES*11/18, LV_VER_RES*1/12);
+    lv_obj_align(player_ctrl_menu, LV_ALIGN_TOP_LEFT, 0, 400);
     lv_obj_set_style_radius(player_ctrl_menu, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_color(player_ctrl_menu, lv_color_make(64, 64, 64), LV_PART_MAIN);
     lv_obj_set_style_border_width(player_ctrl_menu, 0, LV_PART_MAIN);
@@ -492,15 +549,77 @@ void lv_demo(void)
     lv_obj_t * player_ctrl_menu_play_pause_btn = lv_btn_create(player_ctrl_menu);
     lv_obj_set_size(player_ctrl_menu_play_pause_btn, 32, 32);
     lv_obj_align_to(player_ctrl_menu_play_pause_btn, player_ctrl_menu, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_radius(player_ctrl_menu_play_pause_btn, 25, LV_PART_MAIN);
     lv_obj_set_style_bg_color(player_ctrl_menu_play_pause_btn, lv_color_make(230, 230, 230), LV_PART_MAIN);
     lv_obj_t * player_ctrl_menu_play_pause_btn_img = lv_img_create(player_ctrl_menu_play_pause_btn);
     lv_img_set_src(player_ctrl_menu_play_pause_btn_img, "C:/IMG/play.png");
     lv_obj_align_to(player_ctrl_menu_play_pause_btn_img, player_ctrl_menu_play_pause_btn, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_radius(player_ctrl_menu_play_pause_btn, 25, LV_PART_MAIN);
     player_ctrl_menu_play_pause_btn->num = player_ctrl_menu_play_pause_btn_num;
     player_ctrl_menu_play_pause_btn->user_data = player;
     player_ctrl_menu_play_pause_btn->user_data_backup = player_ctrl_menu_play_pause_btn_img;
-    //下拉菜单盒子2二维码盒子背景
+    //播放盒子控制菜单视频循环模型按键
+    lv_obj_t * player_ctrl_playmode_btn = lv_btn_create(player_ctrl_menu);
+    lv_obj_set_size(player_ctrl_playmode_btn, 32, 32);
+    lv_obj_align_to(player_ctrl_playmode_btn, player_ctrl_menu, LV_ALIGN_CENTER, 100, 0);
+    lv_obj_set_style_radius(player_ctrl_playmode_btn, 25, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(player_ctrl_playmode_btn, lv_color_make(230, 230, 230), LV_PART_MAIN);
+    lv_obj_t * player_ctrl_playmode_btn_img = lv_img_create(player_ctrl_playmode_btn);
+    lv_img_set_src(player_ctrl_playmode_btn_img, "C:/IMG/repeat.png");
+    player_run_mode_set_flag = repeat_mode;
+    lv_obj_align_to(player_ctrl_playmode_btn_img, player_ctrl_playmode_btn, LV_ALIGN_CENTER, 0, 0);
+    player_ctrl_playmode_btn->num = player_ctrl_playmode_btn_num;
+    player_ctrl_playmode_btn->user_data = player;
+    player_ctrl_playmode_btn->user_data_backup = player_ctrl_playmode_btn_img;
+    //切换视频按键(下一个)
+    lv_obj_t * player_ctrl_next_btn = lv_btn_create(player_ctrl_menu);
+    lv_obj_set_size(player_ctrl_next_btn, 32, 32);
+    lv_obj_align_to(player_ctrl_next_btn, player_ctrl_menu, LV_ALIGN_CENTER, 50, 0);
+    lv_obj_set_style_radius(player_ctrl_next_btn, 25, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(player_ctrl_next_btn, lv_color_make(230, 230, 230), LV_PART_MAIN);
+    lv_obj_t * player_ctrl_next_btn_img = lv_img_create(player_ctrl_next_btn);
+    lv_img_set_src(player_ctrl_next_btn_img, "C:/IMG/next_btn.png");
+    lv_obj_align_to(player_ctrl_next_btn_img, player_ctrl_next_btn, LV_ALIGN_CENTER, 0, 0);
+    player_ctrl_next_btn->num = player_ctrl_next_btn_num;
+    player_ctrl_next_btn->user_data = player;
+    player_ctrl_next_btn->user_data_backup = player_ctrl_menu_play_pause_btn_img;
+    //切换视频按键(上一个)
+    lv_obj_t * player_ctrl_last_btn = lv_btn_create(player_ctrl_menu);
+    lv_obj_set_size(player_ctrl_last_btn, 32, 32);
+    lv_obj_align_to(player_ctrl_last_btn, player_ctrl_menu, LV_ALIGN_CENTER, -50, 0);
+    lv_obj_set_style_radius(player_ctrl_last_btn, 25, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(player_ctrl_last_btn, lv_color_make(230, 230, 230), LV_PART_MAIN);
+    lv_obj_t * player_ctrl_last_btn_img = lv_img_create(player_ctrl_last_btn);
+    lv_img_set_src(player_ctrl_last_btn_img, "C:/IMG/last_btn.png");
+    lv_obj_align_to(player_ctrl_last_btn_img, player_ctrl_last_btn, LV_ALIGN_CENTER, 0, 0);
+    player_ctrl_last_btn->num = player_ctrl_last_btn_num;
+    player_ctrl_last_btn->user_data = player;
+    player_ctrl_last_btn->user_data_backup = player_ctrl_menu_play_pause_btn_img;
+    //两个按键要能互相影响
+    player_ctrl_last_btn->user_data_backup_backup = player_ctrl_next_btn;
+    player_ctrl_next_btn->user_data_backup_backup = player_ctrl_last_btn;
+    if(player_run_video_num == 0)
+    {
+        lv_obj_clear_flag(player_ctrl_last_btn, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_bg_color(player_ctrl_last_btn, lv_color_make(150, 150, 150), LV_PART_MAIN);
+    }
+    else if(player_run_video_num == 1)
+    {
+        lv_obj_clear_flag(player_ctrl_next_btn, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_bg_color(player_ctrl_next_btn, lv_color_make(150, 150, 150), LV_PART_MAIN);
+    }
+    //视频进度条
+    lv_obj_t * player_ctrl_menu_slider = lv_slider_create(player_ctrl_menu);
+    lv_obj_set_size(player_ctrl_menu_slider, LV_HOR_RES*11/18, 3);
+    lv_obj_align_to(player_ctrl_menu_slider, player_ctrl_menu, LV_ALIGN_TOP_LEFT,0,1);
+    lv_obj_set_style_bg_opa(player_ctrl_menu_slider, 0, LV_PART_KNOB);
+    lv_obj_set_style_height(player_ctrl_menu_slider, 20, LV_PART_INDICATOR);
+    lv_slider_set_value(player_ctrl_menu_slider, 1, LV_ANIM_OFF);
+    lv_obj_add_style(player_ctrl_menu_slider, &style_main, LV_PART_MAIN);
+    lv_obj_add_style(player_ctrl_menu_slider, &style_indicator, LV_PART_INDICATOR);
+    lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_INDICATOR | LV_STATE_PRESSED);
+    lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_KNOB | LV_STATE_PRESSED);
+    lv_obj_clear_flag(player_ctrl_menu_slider, LV_OBJ_FLAG_CLICKABLE);
+    //x.下拉菜单盒子2二维码盒子背景
     lv_obj_set_size(menu_box2_qr_bg, LV_HOR_RES*13/43 , LV_VER_RES*10/13);
     lv_obj_align_to(menu_box2_qr_bg, menu_box2, LV_ALIGN_RIGHT_MID, 400, 0);
     lv_obj_set_style_pad_top(menu_box2_qr_bg, 8, LV_PART_MAIN);
@@ -512,7 +631,7 @@ void lv_demo(void)
     lv_color_t bg_color = lv_palette_lighten(LV_PALETTE_LIGHT_BLUE, 5);
     lv_color_t fg_color = lv_palette_darken(LV_PALETTE_BLUE, 4);
     lv_obj_t * qr1 = lv_qrcode_create(menu_box2_qr_bg, 155, fg_color, bg_color);
-    const char * data = "https://www.baidu.com/";
+    const char * data = "https://github.com/Aurora-init/LVGL_Subplot/";
     lv_qrcode_update(qr1, data, strlen(data));
     lv_obj_align_to(qr1, menu_box2_qr_bg, LV_ALIGN_CENTER, 0, -66);
     lv_obj_set_style_border_color(qr1, bg_color, 0);
@@ -520,30 +639,40 @@ void lv_demo(void)
     lv_obj_t * qr_label = lv_label_create(menu_box2_qr_bg);
     lv_obj_set_size(qr_label, LV_HOR_RES/4, LV_VER_RES/5);
     lv_obj_align_to(qr_label, menu_box2_qr_bg, LV_ALIGN_CENTER, 10, 100);
-    lv_label_set_text(qr_label, "LVGL project GitHub website URL");
+    lv_label_set_text_fmt(qr_label,
+                     "LVGL project GitHub website URL\n"
+                     " \n"
+                     " \n"
+                     " Click to close the QR code page");
 
-    lv_obj_add_event_cb(Status_Bar, main_menu_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(menu, main_menu_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(menu_covered_tiles, main_menu_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(menu_box2, main_menu_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(player_ctrl_menu_play_pause_btn, main_menu_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(menu_box2_qr_bg, main_menu_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(Status_Bar, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(menu, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(menu_covered_tiles, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(menu_box2, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_ctrl_menu_play_pause_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_ctrl_playmode_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_ctrl_next_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_ctrl_last_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_ctrl_menu_slider, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(menu_box2_qr_bg, main_obj_event_cb, LV_EVENT_ALL, NULL);
 
-    lv_timer_t* timer = lv_timer_create(timer_cb, 1000, NULL);
+    //日期更新定时器（1000ms进入一次回调函数）
+    lv_timer_t* timer = lv_timer_create(timeset_timer_cb, 1000, NULL);
     lv_timer_ready(timer);
     timer->user_data = label_time;//应用列表的时间
     label_time->user_data = menu_label_time;//下拉菜单的时间
     menu_label_time->user_data = menu_label_data;//下拉菜单的日期
-}
-
-void lv_application_btn_demo(void)
-{
-    lv_obj_t *btn = lv_btn_create(main_page);
+    //播放器进度条更新定时器（100ms进入一次回调函数）
+    lv_timer_t* ffmpeg_video_end_detect_timer = lv_timer_create(video_detect_timer_cb, 100, NULL);
+    lv_timer_ready(ffmpeg_video_end_detect_timer);
+    ffmpeg_video_end_detect_timer->user_data = player;
+    player->user_data = player_ctrl_menu_play_pause_btn_img;
+    player->user_data_backup = player_ctrl_menu_slider;
 }
 
 float x_speed = 0;
 float y_speed = 0;
-static void main_menu_event_cb(lv_event_t * e)
+static void main_obj_event_cb(lv_event_t * e)
 {
     //获取当前活跃的输入设备的指针
     lv_indev_t * dev = lv_indev_get_act();
@@ -589,8 +718,8 @@ static void main_menu_event_cb(lv_event_t * e)
                 (y_speed>300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup), LV_HOR_RES*7/28, lv_obj_get_height((lv_obj_t *)obj->user_data_backup), LV_VER_RES*1/13):((y_speed<-300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup),0 , lv_obj_get_height((lv_obj_t *)obj->user_data_backup), 0):(void)0);
 
                 (menu_y<500)?lv_obj_clear_flag((lv_obj_t *)obj->user_data_backup, LV_OBJ_FLAG_CLICKABLE):((menu_y>500)?lv_obj_add_flag((lv_obj_t *)obj->user_data_backup, LV_OBJ_FLAG_CLICKABLE):(void)0);
-
             }
+
             //根据释放后行为进行对应选择
             if (gpress_x != gmove_x || gpress_y != gmove_y)
             {
@@ -666,29 +795,98 @@ static void main_menu_event_cb(lv_event_t * e)
             switch(obj->num)
             {
                 case menu_box2_qr_bg_num:
-                    qr_bg_auto_move(obj, 300, 700);
+                    auto_move(obj, 300, 700);
                     break;
+
                 case player_ctrl_menu_play_pause_btn_num:
                     switch(player_run_flag)
                     {
-                        case 0:
+                        case init_state:
                             lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_RESUME);
                             lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            player_run_flag = 1;
+                            player_run_flag = play_state;
                             break;
-                        case 1:
+                        case play_state:
                             lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_PAUSE);
                             lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/play.png");
-                            player_run_flag = 2;
+                            player_run_flag = pause_state;
                             break;
-                        case 2:
+                        case pause_state:
                             lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_RESUME);
                             lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            player_run_flag = 1;
+                            player_run_flag = play_state;
                         default:
                             break;
                     }
                     break;
+
+                case player_ctrl_next_btn_num:
+                    player_run_video_num++;
+                    switch(player_run_video_num)
+                    {
+                        case 0:
+                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/1.mov");
+                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
+                            player_run_flag = play_state;
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
+                            break;
+                        case 1:
+                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/2.mov");
+                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
+                            player_run_flag = play_state;
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
+                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                            lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
+                            lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
+                            lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+                case player_ctrl_last_btn_num:
+                    player_run_video_num--;
+                    switch(player_run_video_num)
+                    {
+                        case 0:
+                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/1.mov");
+                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
+                            player_run_flag = play_state;
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
+                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                            lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
+                            lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
+                            lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
+                            break;
+                        case 1:
+                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/2.mov");
+                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
+                            player_run_flag = play_state;
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+
+                case player_ctrl_playmode_btn_num:
+                    switch(player_run_mode_set_flag)
+                    {
+                        case repeat_mode:
+                            lv_ffmpeg_player_set_auto_restart((lv_obj_t *)obj->user_data, false);
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/unrepeat.png");
+                            player_run_mode_set_flag = unrepeat_mode;
+                            break;
+                        case unrepeat_mode:
+                            lv_ffmpeg_player_set_auto_restart((lv_obj_t *)obj->user_data, true);
+                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/repeat.png");
+                            player_run_mode_set_flag = repeat_mode;
+                            break;
+                        default:
+                            break;
+                    }
+                    break;
+
                 default:
                     break;
             }
@@ -699,8 +897,7 @@ static void main_menu_event_cb(lv_event_t * e)
             {
                 if(obj->num == menu_box2_num)
                 {
-                    qr_bg_auto_move(obj->user_data, 300, 300);
-                    printf("long press\r\n");
+                    auto_move(obj->user_data, 300, 300);
                 }
                 long_press = 0;
             }
@@ -756,129 +953,57 @@ static void main_menu_event_cb(lv_event_t * e)
     }
 }
 
-//用于实现位置变换的动画
-static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target_y)
+/**< 用于实现位置变换的动画 */
+static void start_animation(lv_obj_t * obj, lv_coord_t start, lv_coord_t end, uint32_t time, lv_anim_exec_xcb_t exec_cb)
 {
-    //主移动控件
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, lv_obj_get_y(obj), target_y);
-    lv_anim_set_time(&a, delay); // 动画持续时间为 300 ms
-    lv_anim_set_path_cb(&a, lv_anim_path_linear); // 使用线性插值
-    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y); // 设置 y 坐标的执行回调
-
-    if(obj->user_data!=NULL && obj->num == menu_covered_tiles_num && target_y == 120)
-    {
-        lv_anim_t b;
-        lv_anim_init(&b);
-        lv_anim_set_var(&b, (lv_obj_t *)obj->user_data);
-        lv_anim_set_values(&b, lv_obj_get_x((lv_obj_t *)obj->user_data), -4);
-        lv_anim_set_time(&b, 100);
-        lv_anim_set_path_cb(&b, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&b);// 启动动画
-
-        lv_anim_t c;
-        lv_anim_init(&c);
-        lv_anim_set_var(&c, ((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data));
-        lv_anim_set_values(&c, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)), 46);
-        lv_anim_set_time(&c, 100);
-        lv_anim_set_path_cb(&c, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&c, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&c);// 启动动画
-
-        lv_anim_t d;
-        lv_anim_init(&d);
-        lv_anim_set_var(&d, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data));
-        lv_anim_set_values(&d, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)), 96);
-        lv_anim_set_time(&d, 100);
-        lv_anim_set_path_cb(&d, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&d, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&d);// 启动动画
-
-        lv_anim_t e;
-        lv_anim_init(&e);
-        lv_anim_set_var(&e, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data));
-        lv_anim_set_values(&e, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)), 146);
-        lv_anim_set_time(&e, 100);
-        lv_anim_set_path_cb(&e, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&e, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&e);// 启动动画
-
-        lv_anim_t f;
-        lv_anim_init(&f);
-        lv_anim_set_var(&f, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)->user_data));
-        lv_anim_set_values(&f, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)->user_data)), 196);
-        lv_anim_set_time(&f, 100);
-        lv_anim_set_path_cb(&f, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&f, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&f);// 启动动画
-    }
-    else if(obj->user_data!=NULL && obj->num == menu_covered_tiles_num && target_y == 230)
-    {
-        lv_anim_t b;
-        lv_anim_init(&b);
-        lv_anim_set_var(&b, (lv_obj_t *)obj->user_data);
-        lv_anim_set_values(&b, lv_obj_get_x((lv_obj_t *)obj->user_data), target_y/66-5);
-        lv_anim_set_time(&b, 100);
-        lv_anim_set_path_cb(&b, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&b);// 启动动画
-
-        lv_anim_t c;
-        lv_anim_init(&c);
-        lv_anim_set_var(&c, ((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data));
-        lv_anim_set_values(&c, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)), target_y*23/66-20);
-        lv_anim_set_time(&c, 100);
-        lv_anim_set_path_cb(&c, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&c, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&c);// 启动动画
-
-        lv_anim_t d;
-        lv_anim_init(&d);
-        lv_anim_set_var(&d, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data));
-        lv_anim_set_values(&d, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)), target_y*45/66-35);
-        lv_anim_set_time(&d, 100);
-        lv_anim_set_path_cb(&d, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&d, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&d);// 启动动画
-
-        lv_anim_t e;
-        lv_anim_init(&e);
-        lv_anim_set_var(&e, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data));
-        lv_anim_set_values(&e, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)), target_y*67/66-50);
-        lv_anim_set_time(&e, 100);
-        lv_anim_set_path_cb(&e, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&e, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&e);// 启动动画
-
-        lv_anim_t f;
-        lv_anim_init(&f);
-        lv_anim_set_var(&f, ((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)->user_data));
-        lv_anim_set_values(&f, lv_obj_get_x(((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)obj->user_data)->user_data)->user_data)->user_data)->user_data)), target_y*89/66-69);
-        lv_anim_set_time(&f, 100);
-        lv_anim_set_path_cb(&f, lv_anim_path_linear); // 使用线性插值
-        lv_anim_set_exec_cb(&f, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-        lv_anim_start(&f);// 启动动画
-    }
-    lv_anim_start(&a);// 启动动画
+    lv_anim_set_values(&a, start, end);
+    lv_anim_set_time(&a, time);
+    lv_anim_set_path_cb(&a, lv_anim_path_linear);
+    lv_anim_set_exec_cb(&a, exec_cb);
+    lv_anim_start(&a);
 }
-
-static void qr_bg_auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target)
+static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target)
 {
-    //主移动控件
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, lv_obj_get_x(obj), target);
-    lv_anim_set_time(&a, delay); // 动画持续时间为 300 ms
-    lv_anim_set_path_cb(&a, lv_anim_path_linear); // 使用线性插值
-    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_x); // 设置 y 坐标的执行回调
-    lv_anim_start(&a);// 启动动画
+    if(obj->num == Status_Bar_num || obj->num == menu_num || obj->num == menu_covered_tiles_num)
+    {
+        start_animation(obj, lv_obj_get_y(obj), target, delay, (lv_anim_exec_xcb_t)lv_obj_set_y);
+    }
+
+    #define menu_btn_move_speed_delay 300
+    if(obj->user_data != NULL && obj->num == menu_covered_tiles_num)
+    {
+        lv_coord_t targets[5];
+        if(target == 120) {
+            targets[0] = -4;
+            targets[1] = 46;
+            targets[2] = 96;
+            targets[3] = 146;
+            targets[4] = 196;
+        } else if(target == 230) {
+            targets[0] = target/66-5;
+            targets[1] = target*23/66-20;
+            targets[2] = target*45/66-35;
+            targets[3] = target*67/66-50;
+            targets[4] = target*89/66-69;
+        }
+
+        lv_obj_t * current_obj = (lv_obj_t *)obj->user_data;
+        for(int i = 0; i < 5; ++i) {
+            start_animation(current_obj, lv_obj_get_x(current_obj), targets[i], menu_btn_move_speed_delay, (lv_anim_exec_xcb_t)lv_obj_set_x);
+            current_obj = (lv_obj_t *)current_obj->user_data;
+        }
+    }
+
+    if(obj->num == menu_box2_qr_bg_num)
+    {
+        start_animation(obj, lv_obj_get_x(obj), target, delay, (lv_anim_exec_xcb_t)lv_obj_set_x);
+    }
 }
 
-//用于实现大小变换的动画
+/**< 用于实现大小变换的动画 */
 static void auto_size_set(lv_obj_t * obj, uint32_t delay,lv_coord_t start_width, lv_coord_t target_width, lv_coord_t start_hight, lv_coord_t target_hight)
 {
     lv_anim_t a;
@@ -901,82 +1026,49 @@ static void auto_size_set(lv_obj_t * obj, uint32_t delay,lv_coord_t start_width,
     lv_anim_start(&b);// 启动动画
 }
 
-//专属于时间更新的定时器
-static void timer_cb(lv_timer_t* timer)
+/**< 日期更新定时器回调函数 */
+static void timeset_timer_cb(lv_timer_t* timer)
 {
-    time_t c_time;
-    struct tm* l_time;
-    c_time = time(NULL);
-    l_time = localtime(&c_time);
-    sprintf(str,"%02d:%02d",l_time->tm_hour,l_time->tm_min);
+    time_t c_time = time(NULL);
+    struct tm* l_time = localtime(&c_time);
+
+    // 设置时间
+    sprintf(str, "%02d:%02d", l_time->tm_hour, l_time->tm_min);
     lv_label_set_text((lv_obj_t *)timer->user_data, str);
     lv_label_set_text((lv_obj_t *)((lv_obj_t *)(timer->user_data))->user_data, str);
-    if (l_time->tm_mon + 1 <= 1) {
-        sprintf(str, "Jan  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 2) {
-        sprintf(str, "Feb  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 3) {
-        sprintf(str, "Mar  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 4) {
-        sprintf(str, "Apr  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 5) {
-        sprintf(str, "May  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 6) {
-        sprintf(str, "Jun  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 7) {
-        sprintf(str, "Jul  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 8) {
-        sprintf(str, "Aug  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 9) {
-        sprintf(str, "Sep  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 10) {
-        sprintf(str, "Oct  %02d", l_time->tm_mday);
-    } else if (l_time->tm_mon + 1 <= 11) {
-        sprintf(str, "Nov  %02d", l_time->tm_mday);
+
+    // 设置日期
+    const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    sprintf(str, "%s  %02d", months[l_time->tm_mon], l_time->tm_mday);
+
+    // 添加后缀
+    const char* suffix;
+    if (l_time->tm_mday == 1 || l_time->tm_mday == 21 || l_time->tm_mday == 31) {
+        suffix = "st";
+    } else if (l_time->tm_mday == 2 || l_time->tm_mday == 22) {
+        suffix = "nd";
+    } else if (l_time->tm_mday == 3 || l_time->tm_mday == 23) {
+        suffix = "rd";
     } else {
-        sprintf(str, "Dec  %02d", l_time->tm_mday);
+        suffix = "th";
     }
+    strcat(str, suffix);
 
-    if(l_time->tm_mday == 1){
-        strcat(str, "st");
-    }
-    else if(l_time->tm_mday == 2){
-        strcat(str, "nd");
-    }
-    else if(l_time->tm_mday == 3){
-        strcat(str, "rd");
-    }
-    else{
-        strcat(str, "th");
-    }
+    // 添加星期
+    const char* weekdays[] = {"    Sunday", "    Monday", "    Tuesday", "    Wednesday", "    Thursday", "    Friday", "    Saturday"};
+    strcat(str, weekdays[l_time->tm_wday]);
 
-    switch (l_time->tm_wday) {
-        case 0:
-            strcat(str, "    Sunday");
-            break;
-        case 1:
-            strcat(str, "    Monday");
-            break;
-        case 2:
-            strcat(str, "    Tuesday");
-            break;
-        case 3:
-            strcat(str, "    Wednesday");
-            break;
-        case 4:
-            strcat(str, "    Thursday");
-            break;
-        case 5:
-            strcat(str, "    Friday");
-            break;
-        case 6:
-            strcat(str, "    Saturday");
-            break;
-    }
     lv_label_set_text((lv_obj_t *)((lv_obj_t *)((lv_obj_t *)(timer->user_data))->user_data)->user_data, str);
 }
 
+/**< 播放器进度条更新定时器回调函数 */
+static void video_detect_timer_cb(lv_timer_t* timer)
+{
+    //当前帧获取
+    int frame_index = ffmpeg_get_current_frame_index((lv_obj_t *)timer->user_data);
+    //总帧数
+    int total_frame = lv_ffmpeg_get_frame_num_user_write((lv_obj_t *)timer->user_data);
+    //更新进度条
+    lv_slider_set_value((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data_backup,(int)(((float)(frame_index%total_frame)/(float)total_frame)*100), LV_ANIM_OFF);
 
-
-
-
+}

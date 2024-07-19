@@ -40,7 +40,21 @@
 		<Compiler>
 			<Add option="-Wall" />
 			<Add directory="." />
+			<Add directory="lvgl/src/extra/libs/ffmpeg/include" />
 		</Compiler>
+		<Linker>
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/avcodec.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/avdevice.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/avfilter.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/avformat.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/avutil.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/postproc.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/swresample.lib" />
+			<Add library="lvgl/src/extra/libs/ffmpeg/bin/swscale.lib" />
+			<Add directory="lvgl/src/extra/libs/ffmpeg/bin" />
+			<Add directory="lvgl/src/extra/libs/ffmpeg/lib" />
+			<Add directory="../../../../../../../msys64/mingw64/bin" />
+		</Linker>
 		<Unit filename="lv_100ask_teach_demos/lv_100ask_teach_demos.h" />
 		<Unit filename="lv_100ask_teach_demos/lv_100ask_teach_demos_conf_template.h" />
 		<Unit filename="lv_100ask_teach_demos/src/lv_100ask_demo_course_2_1_1/lv_100ask_demo_course_2_1_1.c">

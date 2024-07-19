@@ -7,7 +7,7 @@
  *      INCLUDES
  *********************/
 #include "lv_ffmpeg.h"
-#if LV_USE_FFMPEG != 0
+//#if LV_USE_FFMPEG != 0
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
@@ -15,6 +15,7 @@
 #include <libavutil/timestamp.h>
 #include <libswscale/swscale.h>
 
+#include "C:\Users\11148\Desktop\lvgl_100ask_course_materials-master\02_程序源码\02_项目模板\00_lv_100ask_sim_codeblocks_win\lv_100ask_teach_demos\lv_100ask_teach_demos.h"
 /*********************
  *      DEFINES
  *********************/
@@ -34,7 +35,7 @@
 
 #define MY_CLASS &lv_ffmpeg_player_class
 
-#define FRAME_DEF_REFR_PERIOD   33  /*[ms]*/
+#define FRAME_DEF_REFR_PERIOD   10  /*[ms]*/
 
 /**********************
  *      TYPEDEFS
@@ -121,7 +122,7 @@ void lv_ffmpeg_init(void)
     av_log_set_level(AV_LOG_QUIET);
 #endif
 }
-
+//获取总帧数1
 int lv_ffmpeg_get_frame_num(const char * path)
 {
     int ret = -1;
@@ -133,6 +134,39 @@ int lv_ffmpeg_get_frame_num(const char * path)
     }
 
     return ret;
+}
+//获取总帧数2
+int lv_ffmpeg_get_frame_num_user_write(lv_obj_t * obj)
+{
+    int ret = -1;
+    lv_ffmpeg_player_t * player = (lv_ffmpeg_player_t *)obj;
+    ret = player->ffmpeg_ctx->video_stream->nb_frames;
+    return ret;
+}
+//设置当前帧
+void ffmpeg_set_current_frame_index(lv_obj_t * obj, uint8_t frame_set)
+{
+    lv_ffmpeg_player_t* player = (lv_ffmpeg_player_t*)obj;
+    struct ffmpeg_context_s* ffmpeg_ctx = player->ffmpeg_ctx;
+
+    // 获取视频流的时间基准
+    AVRational time_base = ffmpeg_ctx->video_stream->time_base;
+
+    // 计算目标时间戳
+    int64_t target_timestamp = (int64_t)(frame_set * time_base.num) / time_base.den;
+    printf("target_timestamp = %d,player->ffmpeg_ctx->video_stream_idx = %\r\n",target_timestamp,player->ffmpeg_ctx->video_stream_idx);
+
+    // 使用 av_seek_frame 跳转到指定时间戳
+    av_seek_frame(ffmpeg_ctx->fmt_ctx, -1, target_timestamp*100000, AVSEEK_FLAG_ANY);
+//    av_seek_frame(player->ffmpeg_ctx->fmt_ctx,
+//                          0, 0, AVSEEK_FLAG_BACKWARD);
+}
+//获取当前帧
+int ffmpeg_get_current_frame_index(lv_obj_t * obj)
+{
+    lv_ffmpeg_player_t * player = (lv_ffmpeg_player_t *)obj;
+    int current_pos = player->ffmpeg_ctx->video_dec_ctx->frame_number;
+    return current_pos;
 }
 
 lv_obj_t * lv_ffmpeg_player_create(lv_obj_t * parent)
@@ -819,8 +853,10 @@ static void lv_ffmpeg_player_frame_update_cb(lv_timer_t * timer)
     }
 
     int has_next = ffmpeg_update_next_frame(player->ffmpeg_ctx);
-
+    //printf("has_next = %d",has_next);
     if(has_next < 0) {
+        lv_img_set_src((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data, "C:/IMG/play.png");
+        player_run_flag = 2;
         lv_ffmpeg_player_set_cmd(obj, player->auto_restart ? LV_FFMPEG_PLAYER_CMD_START : LV_FFMPEG_PLAYER_CMD_STOP);
         return;
     }
@@ -872,4 +908,4 @@ static void lv_ffmpeg_player_destructor(const lv_obj_class_t * class_p,
     LV_TRACE_OBJ_CREATE("finished");
 }
 
-#endif /*LV_USE_FFMPEG*/
+//#endif /*LV_USE_FFMPEG*/

@@ -178,6 +178,7 @@ typedef struct _lv_obj_t {
 #if LV_USE_USER_DATA
     void * user_data;
     void * user_data_backup;
+    void * user_data_backup_backup;
     uint8_t num;
 #endif
     lv_area_t coords;

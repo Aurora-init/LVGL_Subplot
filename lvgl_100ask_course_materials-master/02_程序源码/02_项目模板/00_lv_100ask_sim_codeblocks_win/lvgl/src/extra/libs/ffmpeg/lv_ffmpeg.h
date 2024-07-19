@@ -13,7 +13,7 @@ extern "C" {
  *      INCLUDES
  *********************/
 #include "../../../lvgl.h"
-#if LV_USE_FFMPEG != 0
+//#if LV_USE_FFMPEG != 0
 
 /*********************
  *      DEFINES
@@ -58,6 +58,7 @@ void lv_ffmpeg_init(void);
  */
 int lv_ffmpeg_get_frame_num(const char * path);
 
+
 /**
  * Create ffmpeg_player object
  * @param parent pointer to an object, it will be the parent of the new player
@@ -87,15 +88,21 @@ void lv_ffmpeg_player_set_cmd(lv_obj_t * obj, lv_ffmpeg_player_cmd_t cmd);
  */
 void lv_ffmpeg_player_set_auto_restart(lv_obj_t * obj, bool en);
 
+
 /*=====================
  * Other functions
  *====================*/
+//my sdk
+void ffmpeg_set_current_frame_index(lv_obj_t * obj, uint8_t frame_set);
 
+int ffmpeg_get_current_frame_index(lv_obj_t * obj);
+
+int lv_ffmpeg_get_frame_num_user_write(lv_obj_t * obj);
 /**********************
  *      MACROS
  **********************/
 
-#endif /*LV_USE_FFMPEG*/
+//#endif /*LV_USE_FFMPEG*/
 
 #ifdef __cplusplus
 } /*extern "C"*/
