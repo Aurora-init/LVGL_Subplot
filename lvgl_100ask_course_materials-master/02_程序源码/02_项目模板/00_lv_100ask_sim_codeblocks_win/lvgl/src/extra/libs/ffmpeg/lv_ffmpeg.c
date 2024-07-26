@@ -853,10 +853,12 @@ static void lv_ffmpeg_player_frame_update_cb(lv_timer_t * timer)
     }
 
     int has_next = ffmpeg_update_next_frame(player->ffmpeg_ctx);
-    //printf("has_next = %d",has_next);
     if(has_next < 0) {
-        lv_img_set_src((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data, "C:/IMG/play.png");
-        player_run_flag = 2;
+        if(player_run_mode_set_flag == unrepeat_mode)
+        {
+           lv_img_set_src((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data, "C:/IMG/play.png");
+            player_run_flag = play_state;
+        }
         lv_ffmpeg_player_set_cmd(obj, player->auto_restart ? LV_FFMPEG_PLAYER_CMD_START : LV_FFMPEG_PLAYER_CMD_STOP);
         return;
     }

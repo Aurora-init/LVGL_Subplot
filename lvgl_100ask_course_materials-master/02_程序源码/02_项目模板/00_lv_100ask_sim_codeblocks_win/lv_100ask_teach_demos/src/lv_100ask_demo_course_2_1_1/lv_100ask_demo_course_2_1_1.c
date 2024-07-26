@@ -3,9 +3,9 @@
 #include <stdio.h>
 #include <math.h>
 
-#define app_btn_num 6               /**< 应用列表按键数 */
-#define menu_btn_num 19             /**< 下拉菜单按键数 */
-#define menu_amin_speed_delay 360   /**< 下拉菜单动画持续时间 */
+#define app_btn_num 21                       /**< 应用列表按键数 */
+#define menu_btn_num 19                     /**< 下拉菜单按键数 */
+#define menu_amin_speed_delay 360           /**< 下拉菜单动画持续时间 */
 #define Covered_tiles_amin_speed_delay 300  /**< 瓷砖横杠下拉动画持续时间 */
 
 /**< 时间字样字符串 */
@@ -13,34 +13,12 @@ char str[64];
 
 /**< 播放器播放运行标志位 */
 uint8_t player_run_flag = 0;
-static enum {
-    init_state = 0,
-    play_state,
-    pause_state,
-} player_run_state_t;
 
 /**< 播放器播放模式标志位（repeat_mode、unrepeat_mode） */
 uint8_t player_run_mode_set_flag = 0;
-static enum {
-    repeat_mode = 0,
-    unrepeat_mode,
-} repeat_mode_t;
 
 /**< 视频媒体流索引 */
 uint8_t player_run_video_num = 0;
-
-/**< 进入回调函数的对应对象num值 */
-static enum {
-    Status_Bar_num = 0,
-    menu_num,
-    menu_covered_tiles_num,
-    menu_box2_num,
-    menu_box2_qr_bg_num,
-    player_ctrl_menu_play_pause_btn_num,
-    player_ctrl_playmode_btn_num,
-    player_ctrl_next_btn_num,
-    player_ctrl_last_btn_num,
-} event_cb_num_t;
 
 /**<用户操作回调函数变量*/
 static uint16_t gpress_x = 0;   /**< 按下屏幕后x方向坐标 */
@@ -49,6 +27,8 @@ static uint16_t gpress_y = 0;   /**< 按下屏幕后y方向坐标 */
 static uint16_t gmove_y = 0;    /**< 释放屏幕后y方向坐标 */
 static uint8_t long_press = 0;  /**< 长按检测次数 */
 static uint32_t last_time = 0;  /**< 用于计算dt */
+static float x_speed = 0;       /**< x方向的线速度 */
+static float y_speed = 0;       /**< y方向的线速度 */
 
  /** \brief
   * 用户操作回调函数，处理大多数对象方向上的滑动以及长按点击等事件。
@@ -97,6 +77,27 @@ static void timeset_timer_cb(lv_timer_t * timer);
  */
 static void video_detect_timer_cb(lv_timer_t * timer);
 
+/**< 视频切换功能依赖的变量及函数 */
+const char *video_paths[] = {
+    "C:/MOV/1.mov",
+    "C:/MOV/2.mov",
+    "C:/MOV/3.mov",
+    "C:/MOV/4.mov",
+    "C:/MOV/5.mov",
+    "C:/MOV/6.mov",
+    "C:/MOV/7.mov",
+    "C:/MOV/8.mov"
+};
+const int video_count = sizeof(video_paths) / sizeof(video_paths[0]);
+
+void play_video(lv_obj_t *player, lv_obj_t *img, int video_num) {
+    if (video_num < 0 || video_num >= video_count) return;
+
+    lv_ffmpeg_player_set_src(player, video_paths[video_num]);
+    lv_ffmpeg_player_set_cmd(player, LV_FFMPEG_PLAYER_CMD_START);
+    lv_img_set_src(img, "C:/IMG/pause.png");
+}
+
 /**< 1.主界面 */
 void lv_demo(void)
 {
@@ -108,12 +109,12 @@ void lv_demo(void)
     lv_obj_t * appliction_bg = lv_tabview_create(main_page, LV_DIR_TOP, 0);
     lv_obj_t * appliction_tile1 = lv_tabview_add_tab(appliction_bg, "First");
     lv_obj_t * appliction_tile2 = lv_tabview_add_tab(appliction_bg, "Second");
-    lv_obj_set_size(appliction_tile1, LV_HOR_RES , LV_VER_RES);
     //应用列表按键
-    lv_obj_t *app_btn_objs[app_btn_num];
+    lv_obj_t * app_btn_objs[app_btn_num];
     for (int i = 1; i <= app_btn_num; i++){
         app_btn_objs[i] = lv_btn_create(appliction_tile1);
     }
+     lv_obj_clear_flag(appliction_tile1, LV_OBJ_FLAG_SCROLLABLE);
     //下拉菜单背景
     lv_obj_t * menu = lv_obj_create(main_page);
     //下拉菜单盒子1
@@ -123,12 +124,12 @@ void lv_demo(void)
     lv_obj_t * tile1 = lv_tabview_add_tab(menu_box1_btn2_bg, "First");
     lv_obj_t * tile2 = lv_tabview_add_tab(menu_box1_btn2_bg, "Second");
     //下拉菜单盒子1按键
-    lv_obj_t *menu_btn_objs[menu_btn_num];
+    lv_obj_t * menu_btn_objs[menu_btn_num];
     for (int i = 1; i <= menu_btn_num; i++){
-        if(i<=2){
+        if(i <= 2){
             menu_btn_objs[i] = lv_btn_create(menu_box1);
         }
-        else if(i<=15){
+        else if(i <= 15){
             menu_btn_objs[i] = lv_btn_create(tile1);
         }
         else{
@@ -143,9 +144,11 @@ void lv_demo(void)
     lv_obj_t * mydev_btn_obj = lv_btn_create(menu_covered_tiles);
     //下拉菜单盒子2
     lv_obj_t * menu_box2 = lv_obj_create(menu);
+    lv_obj_t * player_btn_obj = lv_btn_create(menu_box2);
+    lv_obj_t * GITHUB_qrcode_btn_obj = lv_btn_create(menu_box2);
     lv_obj_t * menu_box2_tabview = lv_tabview_create(menu_box2, LV_DIR_TOP, 0);
     //选项卡1播放器
-    lv_obj_t * menu_box2_tabview_tab1= lv_tabview_add_tab(menu_box2_tabview, "First");
+    lv_obj_t * menu_box2_tabview_tab1 = lv_tabview_add_tab(menu_box2_tabview, "First");
     lv_obj_t * player = lv_ffmpeg_player_create(menu_box2_tabview_tab1);
     lv_obj_t * menu_box2_tabview_tab2= lv_tabview_add_tab(menu_box2_tabview, "Second");
     //二维码页面背景
@@ -167,35 +170,16 @@ void lv_demo(void)
     lv_obj_set_size(Status_Bar, LV_HOR_RES , LV_VER_RES/10);
     lv_obj_align_to(Status_Bar, main_page, LV_ALIGN_TOP_MID, 0, 0);
     lv_obj_set_style_border_width(Status_Bar, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(Status_Bar, LV_OPA_0, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(Status_Bar, 0, LV_PART_MAIN);
     lv_obj_clear_flag(Status_Bar, LV_OBJ_FLAG_SCROLLABLE);
     Status_Bar->user_data = menu;
     Status_Bar->num = Status_Bar_num;
-    //状态栏的图标排列
-    lv_obj_t * img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/wifi.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8, 0);
-    img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/mute.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8 + 22, 0);
-    img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/bluez.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8 + 44, 0);
-    img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/No-Sim.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8 + 66, 0);
-    img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/Signal_Strength.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8 + 88, 0);
-    img = lv_img_create(Status_Bar);
-    lv_img_set_src(img, "C:/IMG/Battery.png");
-    lv_obj_align(img, LV_ALIGN_RIGHT_MID, -LV_HOR_RES/8 + 110, 0);
     //状态栏的日期字样
     lv_obj_t * label_time = lv_label_create(Status_Bar);
     lv_obj_set_size(label_time, LV_HOR_RES/10, LV_VER_RES/10);
+    lv_obj_align_to(label_time, Status_Bar, LV_ALIGN_LEFT_MID, 0, 0);
     lv_label_set_text(label_time, str);
     lv_obj_set_style_text_color(label_time, lv_color_make(24, 24, 24), LV_PART_MAIN);
-    lv_obj_align_to(label_time, Status_Bar, LV_ALIGN_LEFT_MID, 0, 0);
     lv_obj_set_style_text_font(label_time, &lv_font_montserrat_24, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(label_time, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN|LV_STATE_DEFAULT);
 
@@ -204,21 +188,24 @@ void lv_demo(void)
     lv_obj_align_to(appliction_bg, main_page, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_bg_color(appliction_bg, lv_color_make(0XFF, 0XFF, 0XFF), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(appliction_bg, LV_OPA_0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
-    lv_obj_set_scroll_dir(appliction_bg, LV_DIR_HOR);                                                     //设置滚动方向,LV_DIR_HOR水平滚动,LV_DIR_VER垂直滚动
     lv_obj_set_style_bg_opa(appliction_bg, LV_OPA_0, LV_PART_SCROLLBAR | LV_STATE_SCROLLED);              //隐藏滚轮
-    //按键控件样式
-    for(int i = 1; i <= app_btn_num; i++)
-    {
-        if(i<7)
-        {
-            lv_obj_set_size(app_btn_objs[i], 128, 128);
-            lv_obj_set_style_bg_color(app_btn_objs[i], lv_color_make(128, 128, 128), LV_PART_MAIN);
-            lv_obj_set_style_border_width(app_btn_objs[i], 2, LV_PART_MAIN);
-            lv_obj_set_style_border_opa(app_btn_objs[i], 128, LV_PART_MAIN);
-            lv_obj_set_style_radius(app_btn_objs[i], 35, LV_PART_MAIN);
-            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_LEFT_MID, (i%8-1)*LV_HOR_RES/6+18, 0);
+    lv_obj_set_scroll_dir(appliction_bg, LV_DIR_HOR);                                                     //设置滚动方向,LV_DIR_HOR水平滚动,LV_DIR_VER垂直滚动
+    //主页面应用按键控件样式
+    for(int i = 1; i <= app_btn_num; i++){
+        lv_obj_set_size(app_btn_objs[i], LV_HOR_RES/10, LV_HOR_RES/10);
+        lv_obj_set_style_bg_color(app_btn_objs[i], lv_color_make(230, 230, 230), LV_PART_MAIN);
+        lv_obj_set_style_border_width(app_btn_objs[i], 1, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(app_btn_objs[i], 128, LV_PART_MAIN);
+        lv_obj_set_style_radius(app_btn_objs[i], 35, LV_PART_MAIN);
+        if(i <= 7){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-1)*LV_HOR_RES/8+76, LV_VER_RES*1/20);
         }
-
+        else if(i <= 14){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-8)*LV_HOR_RES/8+76, LV_VER_RES*6/20);
+        }
+        else if(i <= 21){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-15)*LV_HOR_RES/8+76, LV_VER_RES*11/20);
+        }
         app_btn_objs[i]->num = i*10;
     }
 
@@ -228,7 +215,9 @@ void lv_demo(void)
     lv_obj_set_style_bg_color(menu, lv_color_make(64, 64, 64), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(menu, 250, LV_PART_MAIN);
     lv_obj_set_style_border_width(menu, 0, LV_PART_MAIN);
+    lv_obj_clear_flag(menu, LV_OBJ_FLAG_SCROLLABLE);
     menu->num = menu_num;
+    //4.1下拉菜单的时间及日期字样对象
     lv_obj_t * menu_label_time = lv_label_create(menu);
     lv_obj_set_size(menu_label_time, LV_HOR_RES/10, LV_VER_RES/10);
     lv_obj_align_to(menu_label_time, menu, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -241,18 +230,18 @@ void lv_demo(void)
     lv_obj_set_style_text_font(menu_label_time, &lv_font_montserrat_20, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_style_text_color(menu_label_data, lv_color_make(200, 200, 200), LV_PART_MAIN);
     lv_obj_set_style_text_font(menu_label_data, &lv_font_montserrat_12, LV_PART_MAIN|LV_STATE_DEFAULT);
+    //4.2设置小齿轮图片按键
     lv_obj_t * set_img = lv_img_create(menu);
     lv_img_set_src(set_img, "C:/IMG/set.png");
     lv_obj_align_to(set_img, menu, LV_ALIGN_TOP_LEFT, LV_HOR_RES*3/12, -2);
-    lv_obj_clear_flag(menu, LV_OBJ_FLAG_SCROLLABLE);
+    //4.3下拉菜单的下拉栏目图片
     lv_obj_t * menu_set_img = lv_img_create(menu);
     lv_img_set_src(menu_set_img, "C:/IMG/menu_set.png");
     lv_obj_align_to(menu_set_img, menu, LV_ALIGN_BOTTOM_MID, 0, LV_VER_RES/10);
-    lv_obj_clear_flag(menu, LV_OBJ_FLAG_SCROLLABLE);
 
-    //5.下拉菜单盒子
-    lv_obj_align_to(menu_box1, menu, LV_ALIGN_TOP_LEFT, 0, LV_VER_RES*1/16);
+    //5.下拉菜单盒子1
     lv_obj_set_size(menu_box1, LV_HOR_RES*5/17 , LV_VER_RES*11/13);
+    lv_obj_align_to(menu_box1, menu, LV_ALIGN_TOP_LEFT, 0, LV_VER_RES*1/16);
     lv_obj_set_style_bg_color(menu_box1, lv_color_make(240, 240, 240), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(menu_box1, 0xff, LV_PART_MAIN);
     lv_obj_set_style_border_width(menu_box1, 3, LV_PART_MAIN);
@@ -272,16 +261,23 @@ void lv_demo(void)
     //菜单栏按键
     for(int i = 1; i <= menu_btn_num; i++)
     {
+        lv_obj_set_size(menu_btn_objs[i], 38, 38);
+        lv_obj_set_style_radius(menu_btn_objs[i], 25, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(210,210,210), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
+        lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
         if(i <= 2)
         {
             lv_obj_set_size(menu_btn_objs[i], 128, 64);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(220, 220, 220), LV_PART_MAIN);
-            lv_obj_set_style_border_width(menu_btn_objs[i], 1, LV_PART_MAIN);
-            lv_obj_set_style_border_opa(menu_btn_objs[i], 128, LV_PART_MAIN);
             lv_obj_align_to(menu_btn_objs[i], menu_box1, LV_ALIGN_TOP_LEFT, (i-1)*LV_HOR_RES*3/23, 0);
-            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
+            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(220, 220, 220), LV_PART_MAIN);
             lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
             lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
+            lv_obj_set_style_border_width(menu_btn_objs[i], 1, LV_PART_MAIN);
+            lv_obj_set_style_border_opa(menu_btn_objs[i], 128, LV_PART_MAIN);
+            lv_obj_set_style_radius(menu_btn_objs[i], 15, LV_PART_MAIN);
+            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
             if(i == 1)
             {
                 lv_obj_t * img_box = lv_obj_create(menu_btn_objs[i]);
@@ -342,68 +338,36 @@ void lv_demo(void)
                 lv_img_set_src(img, "C:/IMG/right_arrow.png");
                 lv_obj_align_to(img, bluz_box_btn, LV_ALIGN_CENTER, 0,  1);
             }
-
         }
         else if(i > 2 && i <= 7)
         {
-            lv_obj_set_size(menu_btn_objs[i], 38, 38);
             lv_obj_t * img = lv_img_create(menu_btn_objs[i]);
-            lv_obj_set_style_radius(menu_btn_objs[i], 25, LV_PART_MAIN);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(210,210,210), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
             (i<=3)?lv_img_set_src(img, "C:/IMG/moble_data.png"):((i<=4)?lv_img_set_src(img, "C:/IMG/light.png"):((i<=5)?lv_img_set_src(img, "C:/IMG/post.png"):((i<=6)?lv_img_set_src(img, "C:/IMG/fly_mode.png"):((i<=7)?lv_img_set_src(img, "C:/IMG/Screen_rotation.png"):lv_img_set_src(img, "C:/IMG/Screen_rotation.png")))));
             lv_obj_align_to(img, menu_btn_objs[i], LV_ALIGN_CENTER, 0,  0);
             lv_obj_align_to(menu_btn_objs[i], menu_box1, LV_ALIGN_TOP_LEFT, 8+(i-3)*50,  76);
-            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
-            menu_btn_objs[i]->user_data = menu_btn_objs[i+1];
         }
         else if(i > 7 && i <= 11)
         {
-            lv_obj_set_size(menu_btn_objs[i], 38, 38);
-            lv_obj_set_style_radius(menu_btn_objs[i], 25, LV_PART_MAIN);
             lv_obj_t * img = lv_img_create(menu_btn_objs[i]);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(210,210,210), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
             (i<=8)?lv_img_set_src(img, "C:/IMG/Screen_rotation.png"):((i<=9)?lv_img_set_src(img, "C:/IMG/Ambient Light.png"):((i<=10)?lv_img_set_src(img, "C:/IMG/img_improve.png"):(i<=11)?lv_img_set_src(img, "C:/IMG/peye_mode.png"):(void)0));
             lv_obj_align_to(img, menu_btn_objs[i], LV_ALIGN_CENTER, 0,  0);
             lv_obj_align_to(menu_btn_objs[i], menu_box1, LV_ALIGN_TOP_LEFT, 17+(i-8)*62,  123);
-            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
-            menu_btn_objs[i]->user_data = menu_btn_objs[i+1];
         }
         else if(i > 11 && i <= 15)
         {
-            lv_obj_set_size(menu_btn_objs[i], 38, 38);
-            lv_obj_set_style_radius(menu_btn_objs[i], 25, LV_PART_MAIN);
             lv_obj_t * img = lv_img_create(menu_btn_objs[i]);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(210,210,210), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
             (i<=12)?lv_img_set_src(img, "C:/IMG/power_saving_mode.png"):((i<=13)?lv_img_set_src(img, "C:/IMG/night_mode.png"):((i<=14)?lv_img_set_src(img, "C:/IMG/screenshot.png"):(i<=15)?lv_img_set_src(img, "C:/IMG/recording.png"):(void)0));
             lv_obj_align_to(img, menu_btn_objs[i], LV_ALIGN_CENTER, 0,  0);
             lv_obj_align_to(menu_btn_objs[i], menu_box1, LV_ALIGN_TOP_LEFT, 17+(i-12)*62,  170);
-            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
-            menu_btn_objs[i]->user_data = menu_btn_objs[i+1];
         }
         else if(i > 15 && i <= 19)
         {
-            lv_obj_set_size(menu_btn_objs[i], 38, 38);
-            lv_obj_set_style_radius(menu_btn_objs[i], 25, LV_PART_MAIN);
             lv_obj_t * img = lv_img_create(menu_btn_objs[i]);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(210,210,210), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
             (i<=16)?lv_img_set_src(img, "C:/IMG/power_saving_mode.png"):((i<=17)?lv_img_set_src(img, "C:/IMG/night_mode.png"):((i<=18)?lv_img_set_src(img, "C:/IMG/screenshot.png"):(i<=19)?lv_img_set_src(img, "C:/IMG/recording.png"):(void)0));
             lv_obj_align_to(img, menu_btn_objs[i], LV_ALIGN_CENTER, 0,  0);
             lv_obj_align_to(menu_btn_objs[i], menu_box1, LV_ALIGN_TOP_LEFT, 17+(i-12)*62,  76);
-            lv_obj_add_flag(menu_btn_objs[i], LV_OBJ_FLAG_CHECKABLE);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_color_make(173, 216, 230), LV_STATE_PRESSED);
-            lv_obj_set_style_bg_color(menu_btn_objs[i], lv_palette_main(LV_PALETTE_BLUE_GREY), LV_STATE_CHECKED);
-            menu_btn_objs[i]->user_data = menu_btn_objs[i+1];
         }
+        menu_btn_objs[i]->user_data = menu_btn_objs[i+1];
         menu_btn_objs[i]->num = i*11;
     }
 
@@ -485,11 +449,12 @@ void lv_demo(void)
     lv_obj_set_style_text_color(mydev_btn_label, lv_color_make(24, 24, 24), LV_PART_MAIN);
     lv_obj_set_style_text_font(mydev_btn_label, &lv_font_montserrat_12, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_set_size(mydev_btn_obj, 0, 0);
+    mydev_btn_obj->num = mydev_btn_obj_num;
     menu_covered_tiles->user_data_backup = mydev_btn_obj;
 
     //7.下拉菜单盒子2
-    lv_obj_set_size(menu_box2, LV_HOR_RES*11/17 , LV_VER_RES*11/13);
-    lv_obj_align_to(menu_box2, menu, LV_ALIGN_TOP_RIGHT, 0, LV_VER_RES*1/16);
+    lv_obj_set_size(menu_box2, LV_HOR_RES*11/17*99/100 , LV_VER_RES*11/13);
+    lv_obj_align_to(menu_box2, menu, LV_ALIGN_TOP_RIGHT, -7, LV_VER_RES*1/16);
     lv_obj_set_style_bg_color(menu_box2, lv_color_make(240, 240, 240), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(menu_box2, 0xff, LV_PART_MAIN);
     lv_obj_set_style_border_width(menu_box2, 3, LV_PART_MAIN);
@@ -504,6 +469,28 @@ void lv_demo(void)
     lv_obj_add_flag(menu_box2, LV_OBJ_FLAG_EVENT_BUBBLE);
     menu_box2->num = menu_box2_num;
     menu_box2->user_data = menu_box2_qr_bg;
+    //下拉菜单盒子的第一个应用按键player
+    lv_obj_set_size(player_btn_obj, LV_HOR_RES*1/13, LV_HOR_RES*1/13);
+    lv_obj_set_style_bg_color(player_btn_obj, lv_color_make(220, 220, 220), LV_PART_MAIN);
+    lv_obj_set_style_border_width(player_btn_obj, 6, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(player_btn_obj, 128, LV_PART_MAIN);
+    lv_obj_set_style_radius(player_btn_obj, 15, LV_PART_MAIN);
+    lv_obj_align_to(player_btn_obj, menu_box2, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_t * player_btn_obj_img2 = lv_img_create(player_btn_obj);
+    lv_img_set_src(player_btn_obj_img2, "C:/IMG/player_btn.png");
+    lv_obj_align_to(player_btn_obj_img2, player_btn_obj, LV_ALIGN_CENTER, 3,  0);
+    player_btn_obj->num = player_btn_obj_num;
+    //下拉菜单盒子的第二个应用按键githubQR
+    lv_obj_set_size(GITHUB_qrcode_btn_obj, LV_HOR_RES*1/13, LV_HOR_RES*1/13);
+    lv_obj_set_style_bg_color(GITHUB_qrcode_btn_obj, lv_color_make(220, 220, 220), LV_PART_MAIN);
+    lv_obj_set_style_border_width(GITHUB_qrcode_btn_obj, 6, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(GITHUB_qrcode_btn_obj, 128, LV_PART_MAIN);
+    lv_obj_set_style_radius(GITHUB_qrcode_btn_obj, 15, LV_PART_MAIN);
+    lv_obj_align_to(GITHUB_qrcode_btn_obj, menu_box2, LV_ALIGN_TOP_LEFT, LV_HOR_RES/10, 0);
+    lv_obj_t * GITHUB_qrcode_btn_obj_img = lv_img_create(GITHUB_qrcode_btn_obj);
+    lv_img_set_src(GITHUB_qrcode_btn_obj_img, "C:/IMG/github.png");
+    lv_obj_align_to(GITHUB_qrcode_btn_obj_img, GITHUB_qrcode_btn_obj, LV_ALIGN_CENTER, 0,  0);
+    GITHUB_qrcode_btn_obj->num = GITHUB_qrcode_btn_obj_num;
     //下拉菜单盒子2选项卡
     lv_obj_set_size(menu_box2_tabview, LV_HOR_RES*11/18, LV_VER_RES*11/14);
     lv_obj_clear_flag(menu_box2_tabview, LV_OBJ_FLAG_SCROLLABLE);
@@ -512,7 +499,7 @@ void lv_demo(void)
     lv_obj_set_style_bg_opa(menu_box2_tabview, LV_OPA_100, LV_PART_MAIN);
     lv_obj_set_style_border_opa(menu_box2_tabview, LV_OPA_0, LV_PART_MAIN);
     lv_obj_set_style_border_width(menu_box2_tabview, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(menu_box2_tabview, 25, LV_PART_MAIN);
+    lv_obj_set_style_radius(menu_box2_tabview, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_top(menu_box2_tabview, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_bottom(menu_box2_tabview, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_left(menu_box2_tabview, 0, LV_PART_MAIN);
@@ -525,6 +512,8 @@ void lv_demo(void)
     lv_obj_set_style_pad_left(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_add_flag(menu_box2_tabview_tab2, LV_OBJ_FLAG_EVENT_BUBBLE);
+    menu_box2_tabview->num = menu_box2_tabview_num;
+    player_btn_obj->user_data = menu_box2_tabview;
     //8.下拉菜单盒子2FFMPEG播放盒子
     lv_ffmpeg_player_set_src(player, "C:/MOV/1.mov");
     lv_ffmpeg_player_set_auto_restart(player, true);
@@ -537,7 +526,7 @@ void lv_demo(void)
     lv_obj_t * player_ctrl_menu = lv_obj_create(menu_box2_tabview_tab1);
     lv_obj_set_size(player_ctrl_menu, LV_HOR_RES*11/18, LV_VER_RES*1/12);
     lv_obj_align(player_ctrl_menu, LV_ALIGN_TOP_LEFT, 0, 400);
-    lv_obj_set_style_radius(player_ctrl_menu, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(player_ctrl_menu, 5, LV_PART_MAIN);
     lv_obj_set_style_bg_color(player_ctrl_menu, lv_color_make(64, 64, 64), LV_PART_MAIN);
     lv_obj_set_style_border_width(player_ctrl_menu, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_top(player_ctrl_menu, 0, LV_PART_MAIN);
@@ -607,6 +596,28 @@ void lv_demo(void)
         lv_obj_clear_flag(player_ctrl_next_btn, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_bg_color(player_ctrl_next_btn, lv_color_make(150, 150, 150), LV_PART_MAIN);
     }
+    //关闭视频按键
+    lv_obj_t * player_close_btn = lv_btn_create(player_ctrl_menu);
+    lv_obj_set_size(player_close_btn, 32, 32);
+    lv_obj_align_to(player_close_btn, player_ctrl_menu, LV_ALIGN_CENTER, 290, 0);
+    lv_obj_set_style_radius(player_close_btn, 10, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(player_close_btn, lv_color_make(150, 150, 150), LV_PART_MAIN);
+    lv_obj_t * player_close_btn_img = lv_img_create(player_close_btn);
+    lv_img_set_src(player_close_btn_img, "C:/IMG/close_btn.png");
+    lv_obj_align_to(player_close_btn_img, player_close_btn, LV_ALIGN_CENTER, 0, 0);
+    player_close_btn->num = player_close_btn_num;
+    //最小化视频按键
+    lv_obj_t * player_minimize_btn = lv_btn_create(player_ctrl_menu);
+    lv_obj_set_size(player_minimize_btn, 32, 32);
+    lv_obj_align_to(player_minimize_btn, player_ctrl_menu, LV_ALIGN_CENTER, 250, 0);
+    lv_obj_set_style_radius(player_minimize_btn, 10, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(player_minimize_btn, lv_color_make(150, 150, 150), LV_PART_MAIN);
+    lv_obj_t * player_minimize_btn_img = lv_img_create(player_minimize_btn);
+    lv_img_set_src(player_minimize_btn_img, "C:/IMG/minimize.png");
+    lv_obj_align_to(player_minimize_btn_img, player_minimize_btn, LV_ALIGN_CENTER, 0, 0);
+    player_minimize_btn->num = player_minimize_btn_num;
+    player_minimize_btn->user_data = menu_box2_tabview;
+    auto_size_set(menu_box2_tabview, 10, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14, 0);
     //视频进度条
     lv_obj_t * player_ctrl_menu_slider = lv_slider_create(player_ctrl_menu);
     lv_obj_set_size(player_ctrl_menu_slider, LV_HOR_RES*11/18, 3);
@@ -619,6 +630,8 @@ void lv_demo(void)
     lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_INDICATOR | LV_STATE_PRESSED);
     lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_KNOB | LV_STATE_PRESSED);
     lv_obj_clear_flag(player_ctrl_menu_slider, LV_OBJ_FLAG_CLICKABLE);
+
+
     //x.下拉菜单盒子2二维码盒子背景
     lv_obj_set_size(menu_box2_qr_bg, LV_HOR_RES*13/43 , LV_VER_RES*10/13);
     lv_obj_align_to(menu_box2_qr_bg, menu_box2, LV_ALIGN_RIGHT_MID, 400, 0);
@@ -644,15 +657,20 @@ void lv_demo(void)
                      " \n"
                      " \n"
                      " Click to close the QR code page");
+    GITHUB_qrcode_btn_obj->user_data = menu_box2_qr_bg;
 
     lv_obj_add_event_cb(Status_Bar, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(menu, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(menu_covered_tiles, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(menu_box2, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_btn_obj, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(GITHUB_qrcode_btn_obj, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_ctrl_menu_play_pause_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_ctrl_playmode_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_ctrl_next_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_ctrl_last_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_minimize_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(player_close_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_ctrl_menu_slider, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(menu_box2_qr_bg, main_obj_event_cb, LV_EVENT_ALL, NULL);
 
@@ -670,17 +688,13 @@ void lv_demo(void)
     player->user_data_backup = player_ctrl_menu_slider;
 }
 
-float x_speed = 0;
-float y_speed = 0;
 static void main_obj_event_cb(lv_event_t * e)
 {
     //获取当前活跃的输入设备的指针
     lv_indev_t * dev = lv_indev_get_act();
-
     //获取输入设备的XY坐标
     lv_point_t point = {0};
     lv_indev_get_point(dev, &point);
-
     //获取输入设备的输入方向和速度
     lv_point_t vector = {0};
     lv_indev_get_vect(dev, &vector);
@@ -702,20 +716,20 @@ static void main_obj_event_cb(lv_event_t * e)
             if(obj->num == Status_Bar_num){
                 uint16_t menu_y = lv_obj_get_y2(obj->user_data);
                 (menu_y<LV_VER_RES/2)?auto_move(obj->user_data,menu_amin_speed_delay,-LV_VER_RES):((menu_y>LV_VER_RES/2)?auto_move(obj->user_data,menu_amin_speed_delay,0):(void)0);
-                (y_speed>1000)?auto_move(obj->user_data,menu_amin_speed_delay,0):((y_speed<-1000)?auto_move(obj->user_data,menu_amin_speed_delay,-LV_VER_RES):(void)0);
+                //(y_speed>1000)?auto_move(obj->user_data,menu_amin_speed_delay,0):((y_speed<-1000)?auto_move(obj->user_data,menu_amin_speed_delay,-LV_VER_RES):(void)0);
             }
             else if(obj->num == menu_num){
                 uint16_t menu_y = lv_obj_get_y2(obj);
                 (menu_y<LV_VER_RES/2)?(auto_move(obj,menu_amin_speed_delay,-LV_VER_RES)):((menu_y>LV_VER_RES/2)?(auto_move(obj,menu_amin_speed_delay,0)):(void)0);
-                (y_speed>1000)?auto_move(obj,menu_amin_speed_delay,0):((y_speed<-1000)?auto_move(obj,menu_amin_speed_delay,-LV_VER_RES):(void)0);
+                //(y_speed>1000)?auto_move(obj,menu_amin_speed_delay,0):((y_speed<-1000)?auto_move(obj,menu_amin_speed_delay,-LV_VER_RES):(void)0);
             }
             else if(obj->num == menu_covered_tiles_num){
                 uint16_t menu_y = lv_obj_get_y2(obj);
                 (menu_y<500)?auto_move(obj,Covered_tiles_amin_speed_delay,120):((menu_y>500)?auto_move(obj,Covered_tiles_amin_speed_delay,230):(void)0);
-                (y_speed>300)?auto_move(obj,Covered_tiles_amin_speed_delay,230):((y_speed<-300)?auto_move(obj,Covered_tiles_amin_speed_delay,120):(void)0);
+                //(y_speed>300)?auto_move(obj,Covered_tiles_amin_speed_delay,230):((y_speed<-300)?auto_move(obj,Covered_tiles_amin_speed_delay,120):(void)0);
 
                 (menu_y<500)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup),0 , lv_obj_get_height((lv_obj_t *)obj->user_data_backup), 0):((menu_y>500)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay,lv_obj_get_width((lv_obj_t *)obj->user_data_backup), LV_HOR_RES*7/28, lv_obj_get_height((lv_obj_t *)obj->user_data_backup), LV_VER_RES*1/13):(void)0);
-                (y_speed>300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup), LV_HOR_RES*7/28, lv_obj_get_height((lv_obj_t *)obj->user_data_backup), LV_VER_RES*1/13):((y_speed<-300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup),0 , lv_obj_get_height((lv_obj_t *)obj->user_data_backup), 0):(void)0);
+                //(y_speed>300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup), LV_HOR_RES*7/28, lv_obj_get_height((lv_obj_t *)obj->user_data_backup), LV_VER_RES*1/13):((y_speed<-300)?auto_size_set((lv_obj_t *)obj->user_data_backup, Covered_tiles_amin_speed_delay, lv_obj_get_width((lv_obj_t *)obj->user_data_backup),0 , lv_obj_get_height((lv_obj_t *)obj->user_data_backup), 0):(void)0);
 
                 (menu_y<500)?lv_obj_clear_flag((lv_obj_t *)obj->user_data_backup, LV_OBJ_FLAG_CLICKABLE):((menu_y>500)?lv_obj_add_flag((lv_obj_t *)obj->user_data_backup, LV_OBJ_FLAG_CLICKABLE):(void)0);
             }
@@ -726,24 +740,20 @@ static void main_obj_event_cb(lv_event_t * e)
                 if (gmove_x > gpress_x)//右滑
                 {
                     //如果释放后的坐标大于按下的坐标，且差值大于阈值，并且上下滑动的差值不大，则判断为右滑操作
-                    if ((gmove_x - gpress_x) >= MOVE_OFFSET_X && abs(gmove_y - gpress_y) <= MOVE_OFFSET_Y/2)
-                    {
-                        printf("gdir_state = 1,right swipe OK\r\n");
+                    if ((gmove_x - gpress_x) >= MOVE_OFFSET_X && abs(gmove_y - gpress_y) <= MOVE_OFFSET_Y/2){
+
                     }
-                    else
-                    {
+                    else{
                         printf("right swipe Fail\r\n");
                     }
                 }
                 else if(gpress_x > gmove_x)//左滑
                 {
                     //如果释放后的坐标小于按下的坐标，且差值大于阈值，并且上下滑动的差值不大，则判断为左滑操作
-                    if ((gpress_x - gmove_x) >= MOVE_OFFSET_X && abs(gmove_y - gpress_y) <= MOVE_OFFSET_Y/2)
-                    {
-                        printf("gdir_state = 2,left swipe OK\r\n");
+                    if ((gpress_x - gmove_x) >= MOVE_OFFSET_X && abs(gmove_y - gpress_y) <= MOVE_OFFSET_Y/2){
+
                     }
-                    else
-                    {
+                    else{
                         printf("left swipe Fail\r\n");
                     }
                 }
@@ -752,20 +762,15 @@ static void main_obj_event_cb(lv_event_t * e)
                 {
                     if ((gmove_y - gpress_y) >= MOVE_OFFSET_Y && abs(gmove_x - gpress_x) <= MOVE_OFFSET_X/2)
                     {
-                        if(obj->num == Status_Bar_num)
-                        {
-                            printf("amin set success");
+                        if(obj->num == Status_Bar_num){
                             lv_obj_t *obj_temp = (lv_obj_t *)obj->user_data;
                             auto_move(obj_temp,menu_amin_speed_delay,0);
                         }
-                        else if(obj->num == menu_num)
-                        {
+                        else if(obj->num == menu_num){
                             auto_move(obj,menu_amin_speed_delay,0);
                         }
-                        printf("gdir_state = 3,down swipe OK\r\n");
                     }
-                    else
-                    {
+                    else{
                         printf("down swipe Fail\r\n");
                     }
                 }
@@ -773,19 +778,15 @@ static void main_obj_event_cb(lv_event_t * e)
                 {
                     if ((gpress_y - gmove_y) >= MOVE_OFFSET_Y && abs(gmove_x - gpress_x) <= MOVE_OFFSET_X/2)
                     {
-                        if(obj->num == Status_Bar_num)
-                        {
+                        if(obj->num == Status_Bar_num){
                             lv_obj_t *obj_temp = (lv_obj_t *)obj->user_data;
                             auto_move(obj_temp,menu_amin_speed_delay,-LV_VER_RES);
                         }
-                        else if(obj->num == menu_num)
-                        {
+                        else if(obj->num == menu_num){
                             auto_move(obj,menu_amin_speed_delay,-LV_VER_RES);
                         }
-                        printf("gdir_state = 3,up swipe OK\r\n");
                     }
-                    else
-                    {
+                    else{
                         printf("up swipe Fail\r\n");
                     }
                 }
@@ -797,7 +798,9 @@ static void main_obj_event_cb(lv_event_t * e)
                 case menu_box2_qr_bg_num:
                     auto_move(obj, 300, 700);
                     break;
-
+                case GITHUB_qrcode_btn_obj_num:
+                    auto_move(obj->user_data, 300, 300);
+                    break;
                 case player_ctrl_menu_play_pause_btn_num:
                     switch(player_run_flag)
                     {
@@ -822,51 +825,32 @@ static void main_obj_event_cb(lv_event_t * e)
 
                 case player_ctrl_next_btn_num:
                     player_run_video_num++;
-                    switch(player_run_video_num)
-                    {
-                        case 0:
-                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/1.mov");
-                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
-                            player_run_flag = play_state;
-                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            break;
-                        case 1:
-                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/2.mov");
-                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
-                            player_run_flag = play_state;
-                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-                            lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
-                            lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
-                            lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
-                            break;
-                        default:
-                            break;
+                    player_run_flag = play_state;
+
+                    if (player_run_video_num == 1) {
+                        lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
+                        lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
                     }
+                    if (player_run_video_num == video_count - 1) {
+                        lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                        lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
+                    }
+                    play_video((lv_obj_t *)obj->user_data, (lv_obj_t *)obj->user_data_backup, player_run_video_num);
                     break;
+
                 case player_ctrl_last_btn_num:
                     player_run_video_num--;
-                    switch(player_run_video_num)
-                    {
-                        case 0:
-                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/1.mov");
-                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
-                            player_run_flag = play_state;
-                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-                            lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
-                            lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
-                            lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
-                            break;
-                        case 1:
-                            lv_ffmpeg_player_set_src((lv_obj_t *)obj->user_data, "C:/MOV/2.mov");
-                            lv_ffmpeg_player_set_cmd((lv_obj_t *)obj->user_data, LV_FFMPEG_PLAYER_CMD_START);
-                            player_run_flag = play_state;
-                            lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/pause.png");
-                            break;
-                        default:
-                            break;
+                    player_run_flag = play_state;
+
+                    if (player_run_video_num == 0) {
+                        lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+                        lv_obj_set_style_bg_color(obj, lv_color_make(150, 150, 150), LV_PART_MAIN);
                     }
+                    if (player_run_video_num == video_count - 2) {
+                        lv_obj_add_flag(((lv_obj_t *)obj->user_data_backup_backup), LV_OBJ_FLAG_CLICKABLE);
+                        lv_obj_set_style_bg_color(((lv_obj_t *)obj->user_data_backup_backup), lv_color_make(230, 230, 230), LV_PART_MAIN);
+                    }
+                    play_video((lv_obj_t *)obj->user_data, (lv_obj_t *)obj->user_data_backup, player_run_video_num);
                     break;
 
                 case player_ctrl_playmode_btn_num:
@@ -887,6 +871,15 @@ static void main_obj_event_cb(lv_event_t * e)
                     }
                     break;
 
+                case player_minimize_btn_num:
+                    auto_size_set((lv_obj_t *)obj->user_data, 100, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14, 0);
+                    break;
+
+                case player_btn_obj_num:
+                    auto_size_set((lv_obj_t *)obj->user_data, 100, 0, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14);
+                    printf("player_btn");
+                    break;
+
                 default:
                     break;
             }
@@ -895,15 +888,11 @@ static void main_obj_event_cb(lv_event_t * e)
             long_press++;
             if(long_press > 2)
             {
-                if(obj->num == menu_box2_num)
-                {
-                    auto_move(obj->user_data, 300, 300);
-                }
                 long_press = 0;
             }
             break;
         case LV_EVENT_PRESSING:
-            if( vector.x != 0 || vector.y !=0 )
+            if( vector.x != 0 || vector.y !=0)
             {
                 lv_coord_t x = lv_obj_get_x(obj) +vector.x;
                 lv_coord_t y = lv_obj_get_y(obj)+ vector.y;
@@ -953,7 +942,7 @@ static void main_obj_event_cb(lv_event_t * e)
     }
 }
 
-/**< 用于实现位置变换的动画 */
+/**< 每种动画最基本的模板 */
 static void start_animation(lv_obj_t * obj, lv_coord_t start, lv_coord_t end, uint32_t time, lv_anim_exec_xcb_t exec_cb)
 {
     lv_anim_t a;
@@ -965,6 +954,7 @@ static void start_animation(lv_obj_t * obj, lv_coord_t start, lv_coord_t end, ui
     lv_anim_set_exec_cb(&a, exec_cb);
     lv_anim_start(&a);
 }
+/**< 用于实现位置变换的动画 */
 static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target)
 {
     if(obj->num == Status_Bar_num || obj->num == menu_num || obj->num == menu_covered_tiles_num)
@@ -1006,24 +996,16 @@ static void auto_move(lv_obj_t * obj, uint32_t delay, lv_coord_t target)
 /**< 用于实现大小变换的动画 */
 static void auto_size_set(lv_obj_t * obj, uint32_t delay,lv_coord_t start_width, lv_coord_t target_width, lv_coord_t start_hight, lv_coord_t target_hight)
 {
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_t b;
-    lv_anim_init(&b);
-
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, start_hight, target_hight);
-    lv_anim_set_time(&a, delay); // 动画持续时间
-    lv_anim_set_path_cb(&a, lv_anim_path_linear); // 使用线性插值
-    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_height); // 设置 y 坐标的执行回调
-    lv_anim_set_var(&b, obj);
-    lv_anim_set_values(&b, start_width, target_width);
-    lv_anim_set_time(&b, delay); // 动画持续时间
-    lv_anim_set_path_cb(&b, lv_anim_path_linear); // 使用线性插值
-    lv_anim_set_exec_cb(&b, (lv_anim_exec_xcb_t)lv_obj_set_width); // 设置 y 坐标的执行回调
-
-    lv_anim_start(&a);// 启动动画
-    lv_anim_start(&b);// 启动动画
+    if(obj->num == mydev_btn_obj_num)
+    {
+        start_animation(obj, start_hight, target_hight, delay, (lv_anim_exec_xcb_t)lv_obj_set_height);
+        start_animation(obj, start_width, target_width, delay, (lv_anim_exec_xcb_t)lv_obj_set_width);
+    }
+    else if(obj->num == menu_box2_tabview_num ||obj->num == player_btn_obj_num)
+    {
+        start_animation(obj, start_hight, target_hight, delay, (lv_anim_exec_xcb_t)lv_obj_set_height);
+        start_animation(obj, start_width, target_width, delay, (lv_anim_exec_xcb_t)lv_obj_set_width);
+    }
 }
 
 /**< 日期更新定时器回调函数 */
@@ -1070,5 +1052,4 @@ static void video_detect_timer_cb(lv_timer_t* timer)
     int total_frame = lv_ffmpeg_get_frame_num_user_write((lv_obj_t *)timer->user_data);
     //更新进度条
     lv_slider_set_value((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data_backup,(int)(((float)(frame_index%total_frame)/(float)total_frame)*100), LV_ANIM_OFF);
-
 }

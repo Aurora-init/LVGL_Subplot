@@ -81,7 +81,37 @@ extern "C" {
  * GLOBAL PROTOTYPES
  **********************/
 extern uint8_t player_run_flag;
+extern uint8_t player_run_mode_set_flag;
 
+extern enum {
+    init_state = 0,
+    play_state,
+    pause_state,
+} player_run_state_t;
+
+extern enum {
+    repeat_mode = 0,
+    unrepeat_mode,
+} repeat_mode_t;
+
+/**< 进入回调函数的对应对象num值 */
+extern enum {
+    Status_Bar_num = 0,
+    menu_num,
+    menu_covered_tiles_num,
+    mydev_btn_obj_num,
+    menu_box2_num,
+    player_btn_obj_num,
+    menu_box2_qr_bg_num,
+    menu_box2_tabview_num,
+    player_ctrl_menu_play_pause_btn_num,
+    player_ctrl_playmode_btn_num,
+    player_ctrl_next_btn_num,
+    player_ctrl_last_btn_num,
+    player_close_btn_num,
+    player_minimize_btn_num,
+    GITHUB_qrcode_btn_obj_num
+} event_cb_num_t;
 /**********************
  *      MACROS
  **********************/
