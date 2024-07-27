@@ -157,9 +157,9 @@ void ffmpeg_set_current_frame_index(lv_obj_t * obj, uint8_t frame_set)
     printf("target_timestamp = %d,player->ffmpeg_ctx->video_stream_idx = %\r\n",target_timestamp,player->ffmpeg_ctx->video_stream_idx);
 
     // 使用 av_seek_frame 跳转到指定时间戳
-    av_seek_frame(ffmpeg_ctx->fmt_ctx, -1, target_timestamp*100000, AVSEEK_FLAG_ANY);
-//    av_seek_frame(player->ffmpeg_ctx->fmt_ctx,
-//                          0, 0, AVSEEK_FLAG_BACKWARD);
+//    av_seek_frame(ffmpeg_ctx->fmt_ctx, -1, target_timestamp*100000, AVSEEK_FLAG_ANY);
+    av_seek_frame(player->ffmpeg_ctx->fmt_ctx,
+                          0, 0, AVSEEK_FLAG_BACKWARD);
 }
 //获取当前帧
 int ffmpeg_get_current_frame_index(lv_obj_t * obj)
@@ -857,7 +857,7 @@ static void lv_ffmpeg_player_frame_update_cb(lv_timer_t * timer)
         if(player_run_mode_set_flag == unrepeat_mode)
         {
            lv_img_set_src((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data, "C:/IMG/play.png");
-            player_run_flag = play_state;
+            player_run_flag = pause_state;
         }
         lv_ffmpeg_player_set_cmd(obj, player->auto_restart ? LV_FFMPEG_PLAYER_CMD_START : LV_FFMPEG_PLAYER_CMD_STOP);
         return;

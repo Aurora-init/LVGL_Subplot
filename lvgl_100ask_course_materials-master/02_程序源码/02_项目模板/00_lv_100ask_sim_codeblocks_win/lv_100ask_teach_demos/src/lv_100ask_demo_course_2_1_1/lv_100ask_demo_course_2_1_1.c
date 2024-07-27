@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#define app_btn_num 21                       /**< 应用列表按键数 */
+#define app_btn_num 36                       /**< 应用列表按键数 */
 #define menu_btn_num 19                     /**< 下拉菜单按键数 */
 #define menu_amin_speed_delay 360           /**< 下拉菜单动画持续时间 */
 #define Covered_tiles_amin_speed_delay 300  /**< 瓷砖横杠下拉动画持续时间 */
@@ -98,6 +98,11 @@ void play_video(lv_obj_t *player, lv_obj_t *img, int video_num) {
     lv_img_set_src(img, "C:/IMG/pause.png");
 }
 
+/**< 网易云风格的音乐播放器背景容器对象 */
+static lv_obj_t * menu_box2_music_player_obj = NULL;
+static void wangyi_music_create(lv_obj_t *obj);
+static void wangyi_music_delete(lv_obj_t *obj);
+
 /**< 1.主界面 */
 void lv_demo(void)
 {
@@ -112,9 +117,17 @@ void lv_demo(void)
     //应用列表按键
     lv_obj_t * app_btn_objs[app_btn_num];
     for (int i = 1; i <= app_btn_num; i++){
-        app_btn_objs[i] = lv_btn_create(appliction_tile1);
+        if(i < 22)
+        {
+           app_btn_objs[i] = lv_btn_create(appliction_tile1);
+        }
+        else if(i < 44)
+        {
+            app_btn_objs[i] = lv_btn_create(appliction_tile2);
+        }
     }
-     lv_obj_clear_flag(appliction_tile1, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(appliction_tile1, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(appliction_tile2, LV_OBJ_FLAG_SCROLLABLE);
     //下拉菜单背景
     lv_obj_t * menu = lv_obj_create(main_page);
     //下拉菜单盒子1
@@ -146,11 +159,14 @@ void lv_demo(void)
     lv_obj_t * menu_box2 = lv_obj_create(menu);
     lv_obj_t * player_btn_obj = lv_btn_create(menu_box2);
     lv_obj_t * GITHUB_qrcode_btn_obj = lv_btn_create(menu_box2);
+    lv_obj_t * wangyi_music_btn_obj = lv_btn_create(menu_box2);
     lv_obj_t * menu_box2_tabview = lv_tabview_create(menu_box2, LV_DIR_TOP, 0);
     //选项卡1播放器
     lv_obj_t * menu_box2_tabview_tab1 = lv_tabview_add_tab(menu_box2_tabview, "First");
     lv_obj_t * player = lv_ffmpeg_player_create(menu_box2_tabview_tab1);
-    lv_obj_t * menu_box2_tabview_tab2= lv_tabview_add_tab(menu_box2_tabview, "Second");
+    lv_obj_t * menu_box2_tabview_tab2 = lv_tabview_add_tab(menu_box2_tabview, "Second");
+    lv_obj_t * player_commoit = lv_obj_create(menu_box2_tabview_tab2);
+
     //二维码页面背景
     lv_obj_t * menu_box2_qr_bg = lv_obj_create(menu_box2);
 
@@ -205,6 +221,15 @@ void lv_demo(void)
         }
         else if(i <= 21){
             lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-15)*LV_HOR_RES/8+76, LV_VER_RES*11/20);
+        }
+        else if(i <= 28){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-14)*LV_HOR_RES/8+76, LV_VER_RES*1/20);
+        }
+        else if(i <= 35){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-21)*LV_HOR_RES/8+76, LV_VER_RES*6/20);
+        }
+        else if(i <= 42){
+            lv_obj_align_to(app_btn_objs[i], appliction_bg, LV_ALIGN_TOP_LEFT, (i-28)*LV_HOR_RES/8+76, LV_VER_RES*11/20);
         }
         app_btn_objs[i]->num = i*10;
     }
@@ -491,6 +516,17 @@ void lv_demo(void)
     lv_img_set_src(GITHUB_qrcode_btn_obj_img, "C:/IMG/github.png");
     lv_obj_align_to(GITHUB_qrcode_btn_obj_img, GITHUB_qrcode_btn_obj, LV_ALIGN_CENTER, 0,  0);
     GITHUB_qrcode_btn_obj->num = GITHUB_qrcode_btn_obj_num;
+    //网易云音乐播放器
+    lv_obj_set_size(wangyi_music_btn_obj, LV_HOR_RES*1/13, LV_HOR_RES*1/13);
+    lv_obj_set_style_bg_color(wangyi_music_btn_obj, lv_color_make(220, 220, 220), LV_PART_MAIN);
+    lv_obj_set_style_border_width(wangyi_music_btn_obj, 6, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(wangyi_music_btn_obj, 128, LV_PART_MAIN);
+    lv_obj_set_style_radius(wangyi_music_btn_obj, 15, LV_PART_MAIN);
+    lv_obj_align_to(wangyi_music_btn_obj, menu_box2, LV_ALIGN_TOP_LEFT, LV_HOR_RES*2/10, 0);
+    lv_obj_t * wangyi_music_btn_obj_img = lv_img_create(wangyi_music_btn_obj);
+    lv_img_set_src(wangyi_music_btn_obj_img, "C:/IMG/wangyi_music.png");
+    lv_obj_align_to(wangyi_music_btn_obj_img, wangyi_music_btn_obj, LV_ALIGN_CENTER, 0,  0);
+    wangyi_music_btn_obj->num = wangyi_music_btn_obj_num;
     //下拉菜单盒子2选项卡
     lv_obj_set_size(menu_box2_tabview, LV_HOR_RES*11/18, LV_VER_RES*11/14);
     lv_obj_clear_flag(menu_box2_tabview, LV_OBJ_FLAG_SCROLLABLE);
@@ -512,6 +548,10 @@ void lv_demo(void)
     lv_obj_set_style_pad_left(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_right(menu_box2_tabview_tab1, 0, LV_PART_MAIN);
     lv_obj_add_flag(menu_box2_tabview_tab2, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_set_style_pad_top(menu_box2_tabview_tab2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(menu_box2_tabview_tab2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(menu_box2_tabview_tab2, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(menu_box2_tabview_tab2, 0, LV_PART_MAIN);
     menu_box2_tabview->num = menu_box2_tabview_num;
     player_btn_obj->user_data = menu_box2_tabview;
     //8.下拉菜单盒子2FFMPEG播放盒子
@@ -519,9 +559,10 @@ void lv_demo(void)
     lv_ffmpeg_player_set_auto_restart(player, true);
     lv_ffmpeg_player_set_cmd(player, LV_FFMPEG_PLAYER_CMD_STOP);
     player_run_flag = init_state;
-    lv_obj_align_to(player, menu_box2_tabview_tab1, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_align_to(player, menu_box2_tabview_tab1, LV_ALIGN_CENTER, 0, -33);
     lv_obj_clear_flag(menu_box2_tabview_tab1, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(player, 25, LV_PART_MAIN);
+    menu_box2_tabview->user_data = player;
     //播放盒子控制菜单
     lv_obj_t * player_ctrl_menu = lv_obj_create(menu_box2_tabview_tab1);
     lv_obj_set_size(player_ctrl_menu, LV_HOR_RES*11/18, LV_VER_RES*1/12);
@@ -606,6 +647,9 @@ void lv_demo(void)
     lv_img_set_src(player_close_btn_img, "C:/IMG/close_btn.png");
     lv_obj_align_to(player_close_btn_img, player_close_btn, LV_ALIGN_CENTER, 0, 0);
     player_close_btn->num = player_close_btn_num;
+    player_close_btn->user_data = menu_box2_tabview;
+    player_close_btn->user_data_backup = player_ctrl_menu_play_pause_btn_img;
+    player_close_btn->user_data_backup_backup = player_ctrl_last_btn;
     //最小化视频按键
     lv_obj_t * player_minimize_btn = lv_btn_create(player_ctrl_menu);
     lv_obj_set_size(player_minimize_btn, 32, 32);
@@ -630,7 +674,9 @@ void lv_demo(void)
     lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_INDICATOR | LV_STATE_PRESSED);
     lv_obj_add_style(player_ctrl_menu_slider, &style_pressed_color, LV_PART_KNOB | LV_STATE_PRESSED);
     lv_obj_clear_flag(player_ctrl_menu_slider, LV_OBJ_FLAG_CLICKABLE);
-
+    player_ctrl_menu_slider->num = player_ctrl_menu_slider_num;
+    //视频播放器的评论区域，用来随心所欲地放一些诗歌之类的文字吧
+    lv_obj_set_size(player_commoit, LV_HOR_RES*11/18, LV_VER_RES*11/14);
 
     //x.下拉菜单盒子2二维码盒子背景
     lv_obj_set_size(menu_box2_qr_bg, LV_HOR_RES*13/43 , LV_VER_RES*10/13);
@@ -650,13 +696,15 @@ void lv_demo(void)
     lv_obj_set_style_border_color(qr1, bg_color, 0);
     lv_obj_set_style_border_width(qr1, 5, 0);
     lv_obj_t * qr_label = lv_label_create(menu_box2_qr_bg);
-    lv_obj_set_size(qr_label, LV_HOR_RES/4, LV_VER_RES/5);
+    lv_obj_set_size(qr_label, LV_HOR_RES*13/43, LV_VER_RES/6);
+    lv_obj_set_style_text_font(qr_label, &lv_font_montserrat_12, LV_PART_MAIN|LV_STATE_DEFAULT);
     lv_obj_align_to(qr_label, menu_box2_qr_bg, LV_ALIGN_CENTER, 10, 100);
     lv_label_set_text_fmt(qr_label,
-                     "LVGL project GitHub website URL\n"
+                     "               LVGL project GitHub website URL\n"
                      " \n"
+                     "   https://github.com/Aurora-init/LVGL_Subplot/\n"
                      " \n"
-                     " Click to close the QR code page");
+                     "                 Click to close the QR code page");
     GITHUB_qrcode_btn_obj->user_data = menu_box2_qr_bg;
 
     lv_obj_add_event_cb(Status_Bar, main_obj_event_cb, LV_EVENT_ALL, NULL);
@@ -671,8 +719,8 @@ void lv_demo(void)
     lv_obj_add_event_cb(player_ctrl_last_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_minimize_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(player_close_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(player_ctrl_menu_slider, main_obj_event_cb, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(menu_box2_qr_bg, main_obj_event_cb, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(wangyi_music_btn_obj, main_obj_event_cb, LV_EVENT_ALL, NULL);
 
     //日期更新定时器（1000ms进入一次回调函数）
     lv_timer_t* timer = lv_timer_create(timeset_timer_cb, 1000, NULL);
@@ -798,9 +846,7 @@ static void main_obj_event_cb(lv_event_t * e)
                 case menu_box2_qr_bg_num:
                     auto_move(obj, 300, 700);
                     break;
-                case GITHUB_qrcode_btn_obj_num:
-                    auto_move(obj->user_data, 300, 300);
-                    break;
+
                 case player_ctrl_menu_play_pause_btn_num:
                     switch(player_run_flag)
                     {
@@ -875,11 +921,32 @@ static void main_obj_event_cb(lv_event_t * e)
                     auto_size_set((lv_obj_t *)obj->user_data, 100, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14, 0);
                     break;
 
-                case player_btn_obj_num:
-                    auto_size_set((lv_obj_t *)obj->user_data, 100, 0, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14);
-                    printf("player_btn");
+                case player_close_btn_num:
+                    auto_size_set((lv_obj_t *)obj->user_data, 0, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14, 0);
+                    lv_ffmpeg_player_set_src((lv_obj_t *)(((lv_obj_t *)obj->user_data)->user_data), video_paths[0]);
+                    lv_ffmpeg_player_set_cmd((lv_obj_t *)(((lv_obj_t *)obj->user_data)->user_data), LV_FFMPEG_PLAYER_CMD_STOP);
+                    player_run_flag = init_state;
+                    lv_img_set_src((lv_obj_t *)obj->user_data_backup, "C:/IMG/play.png");
+                    player_run_video_num = 0;
+                    lv_obj_clear_flag((lv_obj_t *)obj->user_data_backup_backup, LV_OBJ_FLAG_CLICKABLE);
+                    lv_obj_set_style_bg_color((lv_obj_t *)obj->user_data_backup_backup, lv_color_make(150, 150, 150), LV_PART_MAIN);
+                    lv_obj_add_flag((lv_obj_t *)((lv_obj_t *)obj->user_data_backup_backup)->user_data_backup_backup, LV_OBJ_FLAG_CLICKABLE);
+                    lv_obj_set_style_bg_color((lv_obj_t *)((lv_obj_t *)obj->user_data_backup_backup)->user_data_backup_backup, lv_color_make(230, 230, 230), LV_PART_MAIN);
                     break;
 
+                case player_btn_obj_num:
+                    auto_size_set((lv_obj_t *)obj->user_data, 100, 0, LV_HOR_RES*11/18, 0, LV_VER_RES*11/14);
+                    break;
+
+                case GITHUB_qrcode_btn_obj_num:
+                    auto_move(obj->user_data, 300, 300);
+                    break;
+                case wangyi_close_btn_num:
+                    wangyi_music_delete(obj->parent);
+                    break;
+                case wangyi_music_btn_obj_num:
+                    wangyi_music_create(obj->parent);
+                    break;
                 default:
                     break;
             }
@@ -1052,4 +1119,55 @@ static void video_detect_timer_cb(lv_timer_t* timer)
     int total_frame = lv_ffmpeg_get_frame_num_user_write((lv_obj_t *)timer->user_data);
     //更新进度条
     lv_slider_set_value((lv_obj_t *)((lv_obj_t *)timer->user_data)->user_data_backup,(int)(((float)(frame_index%total_frame)/(float)total_frame)*100), LV_ANIM_OFF);
+}
+
+/**< 网易云音乐播放器创建 */
+static void wangyi_music_create(lv_obj_t *obj)
+{
+    //网易云音乐播放器的背景容器
+    menu_box2_music_player_obj = lv_obj_create(obj);
+    lv_obj_set_size(menu_box2_music_player_obj, LV_HOR_RES*11/17*94/100 , LV_VER_RES*11/13*94/100);
+    lv_obj_set_style_bg_color(menu_box2_music_player_obj, lv_color_make(230, 230, 230), LV_PART_MAIN);
+    lv_obj_set_style_pad_top(menu_box2_music_player_obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_bottom(menu_box2_music_player_obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_left(menu_box2_music_player_obj, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_right(menu_box2_music_player_obj, 0, LV_PART_MAIN);
+
+    //关闭界面按键
+    lv_obj_t * wangyi_close_btn = lv_btn_create(menu_box2_music_player_obj);
+    lv_obj_set_size(wangyi_close_btn, LV_HOR_RES/21, LV_HOR_RES/21);
+    lv_obj_align_to(wangyi_close_btn, menu_box2_music_player_obj, LV_ALIGN_TOP_RIGHT, 0, 0);
+    lv_obj_set_style_bg_color(wangyi_close_btn, lv_color_make(230, 230, 230), LV_PART_MAIN);
+    lv_obj_set_style_border_width(wangyi_close_btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(wangyi_close_btn, 128, LV_PART_MAIN);
+    lv_obj_set_style_shadow_opa(wangyi_close_btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(wangyi_close_btn, 16, LV_PART_MAIN);
+    wangyi_close_btn->num = wangyi_close_btn_num;
+    lv_obj_t * wangyi_close_btn_img = lv_img_create(wangyi_close_btn);
+    lv_img_set_src(wangyi_close_btn_img, "C:/IMG/wangyi_close.png");
+    lv_obj_align_to(wangyi_close_btn_img, wangyi_close_btn, LV_ALIGN_CENTER, 0, 0);
+
+    //网易云音乐播放器不同页面的选项卡
+    lv_obj_t * wangyi_music_tab = lv_tabview_create(menu_box2_music_player_obj, LV_DIR_TOP, 0);
+    lv_obj_set_size(wangyi_music_tab, LV_HOR_RES*11/17*90/100 , LV_VER_RES*11/13*82/100);
+    lv_obj_align_to(wangyi_music_tab, menu_box2_music_player_obj, LV_ALIGN_TOP_MID, 0, LV_VER_RES*11/13*9/100);
+    lv_obj_set_style_bg_color(wangyi_music_tab, lv_color_make(128, 128, 128), LV_PART_MAIN);
+    lv_obj_t * wangyi_music_tab_tile1 = lv_tabview_add_tab(wangyi_music_tab, "First");
+    lv_obj_t * wangyi_music_tab_tile2 = lv_tabview_add_tab(wangyi_music_tab, "Second");
+
+    //首页每日推荐，推荐歌单等
+    //侧边栏按键
+    lv_obj_t * sidebar_btn_img = lv_img_create(wangyi_music_tab_tile1);
+    lv_img_set_src(sidebar_btn_img, "C:/IMG/sidebar.png");
+    lv_obj_align_to(sidebar_btn_img, wangyi_music_tab_tile1, LV_ALIGN_TOP_LEFT, 0, 0);
+
+    //回调函数
+    lv_obj_add_event_cb(wangyi_close_btn, main_obj_event_cb, LV_EVENT_ALL, NULL);
+}
+
+/**< 网易云音乐播放器删除 */
+static void wangyi_music_delete(lv_obj_t *obj)
+{
+    lv_obj_clean(obj);
+    lv_obj_del(obj);
 }

@@ -110,7 +110,10 @@ extern enum {
     player_ctrl_last_btn_num,
     player_close_btn_num,
     player_minimize_btn_num,
-    GITHUB_qrcode_btn_obj_num
+    GITHUB_qrcode_btn_obj_num,
+    player_ctrl_menu_slider_num,
+    wangyi_close_btn_num,
+    wangyi_music_btn_obj_num
 } event_cb_num_t;
 /**********************
  *      MACROS
